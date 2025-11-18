@@ -78,14 +78,18 @@ def create_sandbox():
             "fastapi==0.104.1",
             "uvicorn[standard]==0.24.0",
             "python-multipart==0.0.6",
+            "pydantic==2.5.0",
+            "pydantic-settings==2.1.0",
             "anthropic==0.7.1",
             "elevenlabs==0.2.27",
             "google-generativeai==0.3.1",
             "boto3==1.29.7",
             "python-dotenv==1.0.0",
-            "galileo-observe==1.0.5",
+            "galileo-observe>=1.29.0",  # Updated to valid version
             "httpx==0.25.1",
-            "pillow==10.1.0"
+            "pillow==10.1.0",
+            "python-jose[cryptography]==3.3.0",
+            "starlette==0.27.0"
         ])
         .workdir("/workspace")
     )
