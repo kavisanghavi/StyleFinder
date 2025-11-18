@@ -242,6 +242,7 @@ import os
 daytona = Daytona()
 
 # Build custom image
+# Note: debian_slim base image includes necessary system packages
 image = (
     Image.debian_slim("3.11")  # Debian with Python 3.11
     .pip_install([
@@ -250,10 +251,6 @@ image = (
         "anthropic==0.7.1",
         # ... other dependencies
     ])
-    .env({
-        'ANTHROPIC_API_KEY': os.getenv('ANTHROPIC_API_KEY'),
-        'ELEVENLABS_API_KEY': os.getenv('ELEVENLABS_API_KEY'),
-    })
     .workdir("/workspace")
 )
 
@@ -423,12 +420,16 @@ sandbox = daytona.create()  # Uses default image
 Update `daytona_deploy.py` to include missing packages:
 
 ```python
+# Add missing Python packages to the pip_install list
 image = (
-    Image.debian_slim("3.11")  # Debian with Python 3.11
+    Image.debian_slim("3.11")
     .pip_install([
-        "your-missing-package",
-        # ... existing packages
+        "your-missing-package",  # Add here
+        "fastapi==0.104.1",
+        "uvicorn[standard]==0.24.0",
+        # ... other packages
     ])
+    .workdir("/workspace")
 )
 ```
 

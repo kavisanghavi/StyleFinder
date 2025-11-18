@@ -70,15 +70,10 @@ def create_sandbox():
 
     # Build custom image with dependencies
     print("📦 Building custom image with dependencies...")
+    # Note: debian_slim comes with system packages like gcc, curl already installed
+    # We only need to install Python packages
     image = (
-        Image.debian_slim("3.11")  # Debian with Python 3.11
-        .apt_install([
-            "gcc",
-            "curl",
-            "libjpeg-dev",
-            "libpng-dev",
-            "libfreetype6-dev"
-        ])
+        Image.debian_slim("3.11")
         .pip_install([
             "fastapi==0.104.1",
             "uvicorn[standard]==0.24.0",
@@ -93,16 +88,6 @@ def create_sandbox():
             "pillow==10.1.0"
         ])
         .workdir("/workspace")
-        .env({
-            'PYTHONUNBUFFERED': '1',
-            'PYTHONDONTWRITEBYTECODE': '1',
-            'ANTHROPIC_API_KEY': os.getenv('ANTHROPIC_API_KEY'),
-            'ELEVENLABS_API_KEY': os.getenv('ELEVENLABS_API_KEY'),
-            'GEMINI_API_KEY': os.getenv('GEMINI_API_KEY'),
-            'TIGRIS_ACCESS_KEY': os.getenv('TIGRIS_ACCESS_KEY', ''),
-            'TIGRIS_SECRET_KEY': os.getenv('TIGRIS_SECRET_KEY', ''),
-            'GALILEO_API_KEY': os.getenv('GALILEO_API_KEY', ''),
-        })
     )
 
     # Create sandbox
