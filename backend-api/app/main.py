@@ -310,6 +310,20 @@ async def analyze_clothing(
                 # Check if background removal succeeded
                 if extracted_image_data and len(extracted_image_data) > 0:
                     background_was_removed = True
+
+                    # Force extracted image to portrait orientation (Gemini sometimes rotates it)
+                    try:
+                        extracted_img = Image.open(io.BytesIO(extracted_image_data))
+                        if extracted_img.width > extracted_img.height:
+                            logger.info(f"🔄 Extracted image is landscape, rotating to portrait: {extracted_img.size}")
+                            extracted_img = extracted_img.rotate(90, expand=True)
+                            output = io.BytesIO()
+                            extracted_img.save(output, format='PNG', quality=95)
+                            extracted_image_data = output.getvalue()
+                            logger.info(f"✅ Extracted image rotated to portrait: {extracted_img.size}")
+                    except Exception as e:
+                        logger.warning(f"⚠️  Could not rotate extracted image: {e}")
+
                     analysis_image_base64 = base64.b64encode(extracted_image_data).decode('utf-8')
 
                     # Save extracted image locally for testing

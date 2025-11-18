@@ -174,7 +174,8 @@ Requirements:
             prompt = f"""Remove the background from this image, keeping only the {subject_description}.
 
 CRITICAL REQUIREMENTS:
-- Keep the {subject_description} EXACTLY as it appears - DO NOT change or alter it in any way
+- ORIENT THE ITEM CORRECTLY: The clothing item should be displayed UPRIGHT in its natural orientation (as if someone is wearing it standing up)
+- If the input image is sideways or rotated, rotate the item to be vertical/upright in the output
 - PRESERVE THE EXACT ORIGINAL COLORS - do not adjust, enhance, or modify the colors
 - Remove ONLY the background elements (hangers, walls, floor, etc.)
 - Use a transparent or white background
@@ -182,8 +183,9 @@ CRITICAL REQUIREMENTS:
 - Keep the exact same fabric texture, patterns, and details
 - Ensure clean edges without artifacts
 - Maintain the original quality and resolution
+- The item should be in PORTRAIT orientation (vertical/tall, not horizontal/wide)
 - Center the item in the frame
-- The item should look IDENTICAL to the original, just without the background"""
+- The item should look IDENTICAL to the original in color and detail, just oriented correctly and without the background"""
 
             # Generate with new Gemini API
             response = self.client.models.generate_content(
