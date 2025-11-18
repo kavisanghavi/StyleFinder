@@ -84,10 +84,9 @@ class PersistenceController {
         entity.createdAt = item.dateAdded
         entity.lastWornAt = item.lastWorn
 
-        // Encrypt and store image
-        if let imageData = imageData {
-            entity.imageData = try? EncryptionService.shared.encrypt(data: imageData)
-        }
+        // Note: Image is now stored in Tigris, URL is in item.imagePath
+        // No need to store image data locally
+        entity.imageData = nil
 
         try context.save()
     }
@@ -99,6 +98,20 @@ class PersistenceController {
 
         let entities = try container.viewContext.fetch(request)
         return entities.compactMap { try? $0.toClothingItem() }
+    }
+
+    /// Load and decrypt image data for a specific item
+    func loadImageData(for itemId: UUID) throws -> Data? {
+        let request = NSFetchRequest<ClothingItemEntity>(entityName: "ClothingItemEntity")
+        request.predicate = NSPredicate(format: "id == %@", itemId as CVarArg)
+
+        if let entity = try container.viewContext.fetch(request).first,
+           let encryptedData = entity.imageData {
+            // Decrypt the image data
+            return try? EncryptionService.shared.decrypt(data: encryptedData)
+        }
+
+        return nil
     }
 
     /// Fetch items filtered by type

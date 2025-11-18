@@ -14,6 +14,20 @@
 import Foundation
 import UIKit
 
+// MARK: - Helper Functions
+
+/// Get or create user ID
+func getUserId() -> String {
+    // For MVP, use device ID or create one
+    if let savedId = UserDefaults.standard.string(forKey: "userId") {
+        return savedId
+    } else {
+        let newId = UUID().uuidString
+        UserDefaults.standard.set(newId, forKey: "userId")
+        return newId
+    }
+}
+
 // MARK: - API Client
 
 class APIClient {
@@ -52,6 +66,19 @@ class APIClient {
 
         var body = Data()
 
+        // Add user_id
+        let userId = getUserId()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"user_id\"\r\n\r\n".data(using: .utf8)!)
+        body.append(userId.data(using: .utf8)!)
+        body.append("\r\n".data(using: .utf8)!)
+
+        // Add remove_background flag
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"remove_background\"\r\n\r\n".data(using: .utf8)!)
+        body.append("true".data(using: .utf8)!)
+        body.append("\r\n".data(using: .utf8)!)
+
         // Add image data
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"file\"; filename=\"image.jpg\"\r\n".data(using: .utf8)!)
@@ -61,7 +88,7 @@ class APIClient {
 
         request.httpBody = body
 
-        print("📤 Sending analyze request to \(url)")
+        print("📤 Sending analyze request to \(url) with user_id: \(userId)")
 
         let (data, response) = try await session.data(for: request)
 
@@ -303,6 +330,9 @@ struct ClothingAnalysis: Codable {
     let all_items: [ClothingAnalysis]?  // For multiple items detected
     let item_count: Int?  // Number of items detected
     let extracted_image: String?  // Base64 encoded extracted/cleaned image
+    let original_image_url: String?  // Tigris URL for original image
+    let extracted_image_url: String?  // Tigris URL for extracted image
+    let background_was_removed: Bool?  // Whether background removal was applied
 
     enum CodingKeys: String, CodingKey {
         case type, color, pattern, style, season, confidence, material, occasion
@@ -311,6 +341,9 @@ struct ClothingAnalysis: Codable {
         case all_items
         case item_count
         case extracted_image
+        case original_image_url
+        case extracted_image_url
+        case background_was_removed
     }
 }
 

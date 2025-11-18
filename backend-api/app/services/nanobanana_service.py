@@ -11,7 +11,8 @@ Features:
 - Outfit visualization
 """
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import base64
 import logging
 from typing import List, Optional
@@ -41,13 +42,13 @@ class NanoBananaService:
     def __init__(self):
         """Initialize the Gemini service with API configuration."""
         try:
-            # Configure Gemini
-            genai.configure(api_key=settings.GEMINI_API_KEY)
+            # Initialize the Gemini client (new API)
+            self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
-            # Initialize the model
-            self.model = genai.GenerativeModel(settings.GEMINI_MODEL)
+            # Model for image generation - using exact model from documentation
+            self.image_model = "gemini-2.5-flash-image"
 
-            logger.info(f"🍌 Nano Banana service initialized with model: {settings.GEMINI_MODEL}")
+            logger.info(f"🍌 Nano Banana service initialized with model: {self.image_model}")
             self.enabled = True
 
         except Exception as e:
@@ -144,7 +145,7 @@ Requirements:
         subject_description: str = "clothing item"
     ) -> bytes:
         """
-        Remove background from a clothing image.
+        Remove background from a clothing image using Gemini image generation.
 
         This isolates the clothing item on a transparent or white background,
         making it easier to use in virtual try-ons.
@@ -154,7 +155,7 @@ Requirements:
             subject_description: Description of what to keep (default: "clothing item")
 
         Returns:
-            Image with removed background as bytes
+            Image with removed background as bytes (PNG format)
 
         Raises:
             Exception: If service is not available or operation fails
@@ -162,37 +163,80 @@ Requirements:
         if not self.enabled:
             raise Exception("Nano Banana service is not available")
 
-        logger.info(f"✂️  Removing background from {subject_description}...")
+        logger.info(f"✂️  Removing background from {subject_description} with Gemini...")
 
         try:
-            # Decode image
+            # Decode image to PIL Image
             img_data = base64.b64decode(image_base64)
+            image = Image.open(io.BytesIO(img_data))
 
-            # Build prompt
-            prompt = f"""Remove the background from this image, keeping only the {subject_description}.
+            # Build prompt for background removal
+            prompt = f"""Extract and isolate ONLY the {subject_description} from this image.
 
-Requirements:
-- Keep the {subject_description} perfectly intact
-- Remove all background elements
-- Use a transparent background (or white if transparency not possible)
-- Maintain all details and colors of the {subject_description}
-- Ensure clean edges without artifacts
-- Preserve the original quality and resolution"""
+⚠️ ABSOLUTE CRITICAL REQUIREMENT #1 - VERTICAL ORIENTATION:
+You MUST make the clothing item PERFECTLY VERTICAL and UPRIGHT. This is NON-NEGOTIABLE.
+- Imagine drawing a vertical line from top to bottom of the image
+- The clothing's center line (from collar to hem) MUST align with this vertical line
+- The collar/neckline MUST be at the TOP (12 o'clock position)
+- The bottom hem MUST be at the BOTTOM (6 o'clock position)
+- The shoulders MUST be horizontal (parallel to the top edge of the image)
+- If the photo was taken at ANY angle, rotate the clothing to be PERFECTLY UPRIGHT
+- Zero degrees rotation - perfectly vertical - no tilt whatsoever
+- Think: the clothing should look like it's hanging on a wall, not tilted
 
-            # Generate
-            response = self.model.generate_content([
-                prompt,
-                {"mime_type": "image/jpeg", "data": img_data}
-            ])
+PRESERVE ARRANGEMENT (but keep vertical):
+- Keep sleeves in their original position (spread out if they were spread out)
+- Keep fabric drape and folds as they were
+- DO NOT rearrange or "style" the clothing
+- BUT ensure the overall garment is VERTICAL while preserving these details
 
-            # Extract result
-            if response.candidates and response.candidates[0].content.parts:
-                for part in response.candidates[0].content.parts:
-                    if hasattr(part, 'inline_data') and part.inline_data:
-                        result_data = part.inline_data.data
-                        logger.info(f"✅ Background removed ({len(result_data)} bytes)")
-                        return result_data
+BACKGROUND:
+- Use ONLY pure white background (#FFFFFF) or transparent
+- DO NOT add frames, borders, shadows, or decorative elements
+- CLEAN simple background ONLY
 
+COLORS & DETAILS:
+- PRESERVE EXACT ORIGINAL COLORS - no changes, no enhancements
+- DO NOT change lighting, saturation, brightness, or hue
+- Keep exact fabric texture, patterns, stitching, and all details
+- Maintain original quality and resolution
+- Keep all wrinkles, creases, and fabric characteristics
+
+OUTPUT:
+- ONLY the clothing item exactly as photographed on plain white background
+- Portrait orientation (vertical/tall)
+- Center the item
+- Clean edges, no artifacts
+- NO artistic additions, NO styling changes"""
+
+            # Generate with new Gemini API
+            response = self.client.models.generate_content(
+                model=self.image_model,
+                contents=[prompt, image]
+            )
+
+            # Extract generated image - iterate response.parts directly (not candidates)
+            for part in response.parts:
+                if part.text is not None:
+                    logger.info(f"📝 Gemini text response: {part.text[:100]}...")
+                elif part.inline_data is not None:
+                    # Get the image data directly from inline_data
+                    image_data = part.inline_data.data
+
+                    # Try to convert to PIL and save as PNG
+                    try:
+                        pil_image = Image.open(io.BytesIO(image_data))
+                        output_buffer = io.BytesIO()
+                        pil_image.save(output_buffer, format='PNG')
+                        result_data = output_buffer.getvalue()
+                    except:
+                        # If conversion fails, use raw data
+                        result_data = image_data
+
+                    logger.info(f"✅ Background removed ({len(result_data)} bytes)")
+                    return result_data
+
+            logger.warning(f"⚠️  No image in response")
             raise Exception("No image generated in response")
 
         except Exception as e:
@@ -323,6 +367,52 @@ Make it look like a professional fashion photography shot, well-styled and aesth
             logger.error(f"❌ Style inspiration generation error: {e}")
             raise
 
+
+    @trace(name="nanobanana_remove_background_rembg")
+    async def remove_background_rembg(
+        self,
+        image_bytes: bytes
+    ) -> bytes:
+        """
+        Remove background from clothing image using rembg (AI-powered, local).
+
+        This extracts just the clothing item, removing hangers, backgrounds, etc.
+        Uses the U2-Net model for accurate background removal.
+
+        Args:
+            image_bytes: Image data as bytes
+
+        Returns:
+            Image with transparent background as bytes (PNG format)
+
+        Raises:
+            Exception: If background removal fails
+        """
+        logger.info("✂️  Removing background with rembg (AI-powered)...")
+
+        try:
+            from rembg import remove
+            from PIL import Image
+            import io
+
+            # Remove background using rembg
+            output_data = remove(image_bytes)
+
+            # Convert to PIL Image to ensure it's PNG with transparency
+            img = Image.open(io.BytesIO(output_data))
+
+            # Save as PNG with transparency
+            output_buffer = io.BytesIO()
+            img.save(output_buffer, format='PNG')
+            result_bytes = output_buffer.getvalue()
+
+            logger.info(f"✅ Background removed successfully ({len(result_bytes)} bytes)")
+            return result_bytes
+
+        except Exception as e:
+            logger.error(f"❌ Background removal error: {e}")
+            logger.warning("⚠️  Returning original image due to error")
+            return image_bytes
 
     @trace(name="extract_clothing_items")
     async def extract_clothing_items(

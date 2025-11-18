@@ -23,6 +23,7 @@ import base64
 import io
 import logging
 from pathlib import Path
+from PIL import Image, ExifTags, ImageOps
 
 # Import services
 from app.services.claude_service import claude_service
@@ -34,6 +35,13 @@ from app.services.weather_service import weather_service
 from app.services.background_removal_service import background_removal_service
 from app.monitoring.galileo_observer import galileo_observer
 from app.config import settings
+
+# Import database
+from app.database import init_db, get_db
+from app.models import ClothingItem as ClothingItemModel
+from sqlalchemy.orm import Session
+from fastapi import Depends
+import uuid
 
 # Configure logging
 logging.basicConfig(
@@ -76,6 +84,9 @@ class ClothingAnalysisResponse(BaseModel):
     material: Optional[str] = Field(None, description="Material type")
     occasion: Optional[List[str]] = Field(None, description="Suitable occasions")
     care_instructions: Optional[str] = Field(None, description="Care recommendations")
+    original_image_url: Optional[str] = Field(None, description="Tigris URL for original uploaded image")
+    extracted_image_url: Optional[str] = Field(None, description="Tigris URL for background-removed/extracted image")
+    background_was_removed: Optional[bool] = Field(False, description="Whether background removal was applied")
 
 
 class OutfitRequest(BaseModel):
@@ -191,20 +202,31 @@ async def get_forecast(city: str, days: int = 3):
     response_model=ClothingAnalysisResponse,
     tags=["Clothing Analysis"],
     summary="Analyze a clothing item",
-    description="Upload a clothing image to get detailed AI analysis including type, color, style, and pairing suggestions."
+    description="Upload a clothing image to get detailed AI analysis including type, color, style, and pairing suggestions. Images are encrypted and stored in Tigris cloud storage."
 )
-async def analyze_clothing(file: UploadFile = File(...)):
+async def analyze_clothing(
+    file: UploadFile = File(...),
+    user_id: Optional[str] = Form(None),
+    remove_background: Optional[bool] = Form(True),
+    db: Session = Depends(get_db)
+):
     """
     Analyze a clothing item using Claude's vision capabilities.
 
-    This endpoint accepts an image file and returns comprehensive analysis
-    including clothing type, color, pattern, style, seasonality, and what it pairs well with.
+    This endpoint:
+    1. Uploads original image to Tigris (cloud storage)
+    2. Removes background to extract clean clothing image
+    3. Uploads extracted image to Tigris
+    4. Analyzes with Claude
+    5. Returns metadata + Tigris URLs
 
     Args:
         file: Image file (JPEG, PNG, etc.)
+        user_id: Optional user identifier for organizing images in Tigris
+        remove_background: Whether to remove background and extract clothing (default: True)
 
     Returns:
-        ClothingAnalysisResponse: Detailed clothing analysis
+        ClothingAnalysisResponse: Detailed clothing analysis with Tigris URLs
 
     Raises:
         HTTPException: If analysis fails
@@ -214,14 +236,150 @@ async def analyze_clothing(file: UploadFile = File(...)):
 
         # Read image
         image_data = await file.read()
-
-        # Encode for Claude
-        image_base64 = base64.b64encode(image_data).decode('utf-8')
         content_type = file.content_type or "image/jpeg"
 
-        # MVP-C.3: Auto-generate ALL metadata with multimodal LLM
+        # Auto-rotate image to vertical/portrait orientation
+        try:
+            image = Image.open(io.BytesIO(image_data))
+            original_size = image.size
+            width, height = original_size
+
+            # First, apply EXIF orientation correction
+            corrected_image = ImageOps.exif_transpose(image)
+
+            # Then, ensure image is portrait (vertical/top-down)
+            # If width > height, rotate 90° counter-clockwise to make it portrait
+            if corrected_image.width > corrected_image.height:
+                corrected_image = corrected_image.rotate(90, expand=True)
+                logger.info(f"🔄 Rotated image 90° to portrait: {original_size} → {corrected_image.size}")
+            else:
+                logger.info(f"✅ Image is already portrait orientation: {corrected_image.size}")
+
+            # Save corrected image back to bytes
+            output = io.BytesIO()
+            image_format = corrected_image.format or 'JPEG'
+            corrected_image.save(output, format=image_format, quality=95)
+            image_data = output.getvalue()
+
+        except Exception as e:
+            logger.warning(f"⚠️  Could not auto-rotate image: {e}, using original")
+
+        # Encode for processing
+        image_base64 = base64.b64encode(image_data).decode('utf-8')
+
+        # Save original image locally for testing
+        try:
+            import time
+            timestamp = int(time.time())
+            test_output_dir = Path("test_outputs")
+            test_output_dir.mkdir(exist_ok=True)
+
+            local_filename = f"original-{timestamp}-{file.filename}"
+            local_path = test_output_dir / local_filename
+
+            with open(local_path, "wb") as f:
+                f.write(image_data)
+
+            logger.info(f"💾 Saved original image locally: {local_path}")
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to save original image locally: {e}")
+
+        # === STEP 1: Upload original image to Tigris ===
+        original_image_url = None
+        if tigris_service.enabled and user_id:
+            try:
+                logger.info("☁️  Uploading original image to Tigris...")
+                import time
+                timestamp = int(time.time())
+                original_filename = f"original-{timestamp}-{file.filename}"
+                original_image_url = await tigris_service.upload_image(
+                    image_bytes=image_data,
+                    filename=original_filename,
+                    content_type=content_type,
+                    user_id=user_id
+                )
+                logger.info(f"✅ Original image uploaded: {original_image_url}")
+            except Exception as e:
+                logger.warning(f"⚠️  Failed to upload original to Tigris: {e}")
+
+        # === STEP 2: Remove background and extract clothing ===
+        extracted_image_url = None
+        extracted_image_data = None
+        background_was_removed = False
+        analysis_image_base64 = image_base64  # Default to original
+
+        if remove_background and nanobanana_service.enabled:
+            try:
+                logger.info("✂️  Removing background with Gemini API...")
+                extracted_image_data = await nanobanana_service.remove_background(
+                    image_base64=image_base64,
+                    subject_description="clothing item"
+                )
+
+                # Check if background removal succeeded
+                if extracted_image_data and len(extracted_image_data) > 0:
+                    background_was_removed = True
+
+                    # Force extracted image to portrait orientation (Gemini sometimes rotates it)
+                    try:
+                        extracted_img = Image.open(io.BytesIO(extracted_image_data))
+                        if extracted_img.width > extracted_img.height:
+                            logger.info(f"🔄 Extracted image is landscape, rotating to portrait: {extracted_img.size}")
+                            extracted_img = extracted_img.rotate(90, expand=True)
+                            output = io.BytesIO()
+                            extracted_img.save(output, format='PNG', quality=95)
+                            extracted_image_data = output.getvalue()
+                            logger.info(f"✅ Extracted image rotated to portrait: {extracted_img.size}")
+                    except Exception as e:
+                        logger.warning(f"⚠️  Could not rotate extracted image: {e}")
+
+                    analysis_image_base64 = base64.b64encode(extracted_image_data).decode('utf-8')
+
+                    # Save extracted image locally for testing
+                    try:
+                        import time
+                        timestamp = int(time.time())
+                        test_output_dir = Path("test_outputs")
+                        test_output_dir.mkdir(exist_ok=True)
+
+                        local_filename = f"extracted-{timestamp}-{file.filename.rsplit('.', 1)[0]}.png"
+                        local_path = test_output_dir / local_filename
+
+                        with open(local_path, "wb") as f:
+                            f.write(extracted_image_data)
+
+                        logger.info(f"💾 Saved extracted image locally: {local_path}")
+                    except Exception as e:
+                        logger.warning(f"⚠️  Failed to save image locally: {e}")
+
+                    # Upload extracted image to Tigris
+                    if tigris_service.enabled and user_id:
+                        try:
+                            logger.info("☁️  Uploading extracted image to Tigris...")
+                            import time
+                            timestamp = int(time.time())
+                            # Use PNG extension since background removal returns PNG
+                            extracted_filename = f"extracted-{timestamp}-{file.filename.rsplit('.', 1)[0]}.png"
+                            extracted_image_url = await tigris_service.upload_image(
+                                image_bytes=extracted_image_data,
+                                filename=extracted_filename,
+                                content_type="image/png",
+                                user_id=user_id
+                            )
+                            logger.info(f"✅ Extracted image uploaded: {extracted_image_url}")
+                        except Exception as e:
+                            logger.warning(f"⚠️  Failed to upload extracted image: {e}")
+                else:
+                    logger.info("ℹ️  Background removal skipped or failed, using original")
+
+            except Exception as e:
+                logger.warning(f"⚠️  Background removal failed: {e}, using original")
+
+        # === STEP 3: Analyze with Claude ===
         logger.info("🤖 Auto-generating metadata with Claude...")
-        analysis = await claude_service.analyze_clothing(image_base64, content_type)
+        # If background was removed, image is now PNG, not original type
+        analysis_content_type = "image/png" if background_was_removed else content_type
+        analysis = await claude_service.analyze_clothing(analysis_image_base64, analysis_content_type)
 
         # MVP-C.2: Extract individual clothing items with Gemini
         if analysis.get('item_count', 1) > 1 and analysis.get('all_items'):
@@ -244,10 +402,86 @@ async def analyze_clothing(file: UploadFile = File(...)):
 
         logger.info(f"✅ Analysis complete: {analysis.get('item_count', 1)} item(s) processed!")
 
+        # === STEP 4: Add Tigris URLs and extracted image to response ===
+        analysis['original_image_url'] = original_image_url
+        analysis['extracted_image_url'] = extracted_image_url
+        analysis['background_was_removed'] = background_was_removed
+
+        # Add extracted image as base64 for iOS app to save locally
+        if background_was_removed and extracted_image_data:
+            analysis['extracted_image'] = base64.b64encode(extracted_image_data).decode('utf-8')
+            logger.info("📦 Added extracted image to response (base64)")
+
+        # === STEP 5: Save to database ===
+        if user_id:
+            try:
+                item_id = str(uuid.uuid4())  # Generate UUID for item
+                db_item = ClothingItemModel(
+                    id=item_id,
+                    user_id=user_id,
+                    original_image_url=original_image_url,
+                    extracted_image_url=extracted_image_url,
+                    type=analysis.get('type', ''),
+                    color=analysis.get('color', ''),
+                    pattern=analysis.get('pattern', ''),
+                    style=analysis.get('style', ''),
+                    confidence=analysis.get('confidence', 0.0),
+                    season=analysis.get('season', []),
+                    pairs_well_with=analysis.get('pairs_well_with', []),
+                    occasion=analysis.get('occasion'),
+                    material=analysis.get('material'),
+                    care_instructions=analysis.get('care_instructions')
+                )
+                db.add(db_item)
+                db.commit()
+                db.refresh(db_item)
+                logger.info(f"💾 Saved item to database: {item_id}")
+
+                # Add item ID to response
+                analysis['item_id'] = item_id
+            except Exception as db_error:
+                logger.error(f"❌ Database save failed: {db_error}")
+                db.rollback()
+                # Don't fail the request if DB save fails
+
         return analysis
 
     except Exception as e:
         logger.error(f"❌ Clothing analysis error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get(
+    "/closet/{user_id}",
+    tags=["Closet"],
+    summary="Get user's closet items",
+    description="Fetch all clothing items for a specific user from the database."
+)
+async def get_user_closet(
+    user_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get all clothing items for a user.
+
+    Returns:
+        List of clothing items with metadata and image URLs
+    """
+    try:
+        items = db.query(ClothingItemModel).filter(
+            ClothingItemModel.user_id == user_id
+        ).order_by(
+            ClothingItemModel.created_at.desc()
+        ).all()
+
+        return {
+            "user_id": user_id,
+            "item_count": len(items),
+            "items": [item.to_dict() for item in items]
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Failed to fetch closet: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -636,7 +870,10 @@ async def demo_dashboard():
 
 @app.on_event("startup")
 async def startup_event():
-    """Log startup information."""
+    """Log startup information and initialize database."""
+    # Initialize database
+    init_db()
+
     logger.info("=" * 60)
     logger.info("🚀 AI Closet Scanner API Starting...")
     logger.info("=" * 60)
@@ -651,6 +888,7 @@ async def startup_event():
     logger.info(f"  ☁️  Tigris: {'✅ Enabled' if tigris_service.enabled else '❌ Disabled'}")
     logger.info(f"  💳 Brex: {'✅ Enabled' if brex_service.enabled else '❌ Disabled'}")
     logger.info(f"  📊 Galileo: {'✅ Enabled' if galileo_observer.galileo_enabled else '❌ Disabled'}")
+    logger.info(f"  💾 Database: ✅ Enabled (SQLite)")
     logger.info("=" * 60)
     logger.info("✅ API Ready!")
     logger.info("=" * 60)

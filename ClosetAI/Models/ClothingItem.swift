@@ -17,7 +17,7 @@ struct ClothingItem: Identifiable, Codable, Hashable {
     // MARK: - Properties
 
     let id: UUID
-    let imagePath: String  // Local file path to the encrypted image
+    let imagePath: String  // Tigris URL for the image
 
     // Claude Analysis Results
     let type: String  // shirt, pants, dress, etc.
@@ -38,6 +38,7 @@ struct ClothingItem: Identifiable, Codable, Hashable {
     let lastWorn: Date?
     let wornCount: Int
     let favorite: Bool
+    let isProcessing: Bool  // True while AI is analyzing
 
     // User Notes
     let userNotes: String?
@@ -62,6 +63,7 @@ struct ClothingItem: Identifiable, Codable, Hashable {
         lastWorn: Date? = nil,
         wornCount: Int = 0,
         favorite: Bool = false,
+        isProcessing: Bool = false,
         userNotes: String? = nil,
         userTags: [String] = []
     ) {
@@ -81,6 +83,7 @@ struct ClothingItem: Identifiable, Codable, Hashable {
         self.lastWorn = lastWorn
         self.wornCount = wornCount
         self.favorite = favorite
+        self.isProcessing = isProcessing
         self.userNotes = userNotes
         self.userTags = userTags
     }

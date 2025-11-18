@@ -21,7 +21,20 @@
       "Bash(backend-api/start.sh)",
       "Bash(backend-api/venv/bin/pip install:*)",
       "Bash(cat:*)",
-      "Bash(PYTHONPATH=/Users/aipc/Documents/organzieer/ClosetAI/backend-api ./venv/bin/uvicorn:*)"
+      "Bash(PYTHONPATH=/Users/aipc/Documents/organzieer/ClosetAI/backend-api ./venv/bin/uvicorn:*)",
+      "Bash(./venv/bin/pip list:*)",
+      "Bash(./venv/bin/pip:*)",
+      "Bash(backend-api/venv/bin/python:*)",
+      "Bash(venv/bin/python:*)",
+      "Bash(PYTHONPATH=/Users/jenishkanani/Documents/ClosetAI/backend-api ./venv/bin/uvicorn:*)",
+      "WebSearch",
+      "Bash(venv/bin/python3:*)",
+      "Bash(md5:*)",
+      "Bash(venv/bin/pip install:*)",
+      "Bash(PYTHONPATH=. ./venv/bin/uvicorn:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(ssh:*)",
+      "Bash(venv/bin/pip list:*)"
     ],
     "deny": [],
     "ask": []
