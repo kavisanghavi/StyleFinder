@@ -860,11 +860,22 @@ async def virtual_tryon_outfit(
         # Encode result as base64 for response
         result_base64 = base64.b64encode(result_image).decode('utf-8')
 
+        # Get positive statement from Claude about the try-on
+        positive_statement = ""
+        try:
+            logger.info("💬 Getting positive statement from Claude...")
+            positive_statement = await claude_service.generate_tryon_compliment(result_base64)
+            logger.info(f"✅ Claude statement: {positive_statement}")
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to generate statement: {e}")
+            positive_statement = "You look amazing in this outfit! It really suits your style."
+
         return {
             "success": True,
             "message": "Virtual try-on generated successfully",
             "try_on_image_url": try_on_url,
             "try_on_image_base64": result_base64,
+            "positive_statement": positive_statement,
             "timestamp": tigris_service.get_timestamp()
         }
 

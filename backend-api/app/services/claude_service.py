@@ -368,6 +368,74 @@ Provide clear, actionable styling advice in 2-3 paragraphs. Be specific and help
             logger.error(f"❌ Claude API error: {e}")
             raise
 
+    @trace(name="claude_tryon_compliment")
+    async def generate_tryon_compliment(
+        self,
+        tryon_image_base64: str
+    ) -> str:
+        """
+        Generate a positive, encouraging statement about a virtual try-on result.
+
+        Args:
+            tryon_image_base64: Base64-encoded virtual try-on result image
+
+        Returns:
+            Positive statement about the outfit (1-2 sentences)
+        """
+        logger.info("💬 Generating positive statement for virtual try-on...")
+
+        prompt = """Look at this person wearing this outfit in the virtual try-on image.
+
+Generate a SHORT, POSITIVE, ENCOURAGING statement about how they look (1-2 sentences max).
+
+Make it:
+- Genuinely complimentary and uplifting
+- Specific to what you see in the outfit
+- Natural and conversational
+- Encouraging and confidence-boosting
+- Focus on how great they look
+
+Do NOT:
+- Be generic or templated
+- Mention it's a virtual try-on
+- Be overly long or verbose
+
+Just give me a short, positive statement that will make them feel great about the outfit."""
+
+        try:
+            message = self.client.messages.create(
+                model=self.model,
+                max_tokens=150,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": "image/png",
+                                    "data": tryon_image_base64
+                                }
+                            },
+                            {
+                                "type": "text",
+                                "text": prompt
+                            }
+                        ]
+                    }
+                ],
+            )
+
+            statement = message.content[0].text.strip()
+            logger.info(f"✅ Generated statement: {statement}")
+
+            return statement
+
+        except anthropic.APIError as e:
+            logger.error(f"❌ Claude API error: {e}")
+            return "You look absolutely amazing in this outfit! It really brings out your best features."
+
 
 # Global instance
 claude_service = ClaudeService()

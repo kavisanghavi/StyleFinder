@@ -15,11 +15,15 @@ struct VirtualTryOnView: View {
     @State private var selectedOutfit: SavedOutfit?
     @State private var outfitImages: [UIImage] = []
     @State private var resultImage: UIImage?
+    @State private var positiveStatement: String?
+    @State private var audioPlayer: AudioPlayerHelper?
     @State private var showingUserPicker = false
     @State private var showingOutfitPicker = false
     @State private var isGenerating = false
     @State private var errorMessage = ""
     @State private var showError = false
+
+    let elevenLabsApiKey = "sk_1f24853eb5bd1e3f2c491bda23fd60a8a7767b5adde36a6e"
 
     var body: some View {
         NavigationStack {
@@ -220,7 +224,7 @@ struct VirtualTryOnView: View {
 
         Task {
             do {
-                let result = try await APIClient.shared.virtualTryOn(
+                let (image, statement) = try await APIClient.shared.virtualTryOn(
                     userImage: userImg,
                     clothingItems: outfitImages,
                     styleGuidance: selectedOutfit?.stylingTips
@@ -228,8 +232,24 @@ struct VirtualTryOnView: View {
 
                 await MainActor.run {
                     withAnimation(.spring(response: 0.4)) {
-                        resultImage = result
+                        resultImage = image
+                        positiveStatement = statement
                         isGenerating = false
+                    }
+                }
+
+                // Play positive statement with ElevenLabs
+                if let statement = statement, !statement.isEmpty {
+                    do {
+                        let audioData = try await APIClient.shared.textToSpeech(
+                            text: statement,
+                            apiKey: elevenLabsApiKey
+                        )
+                        await MainActor.run {
+                            playAudio(data: audioData)
+                        }
+                    } catch {
+                        print("❌ Failed to generate speech: \(error)")
                     }
                 }
             } catch {
@@ -248,6 +268,19 @@ struct VirtualTryOnView: View {
             userPhoto = nil
             selectedOutfit = nil
             outfitImages = []
+            positiveStatement = nil
+            audioPlayer?.stop()
+            audioPlayer = nil
+        }
+    }
+
+    func playAudio(data: Data) {
+        do {
+            audioPlayer = try AudioPlayerHelper(audioData: data)
+            audioPlayer?.play()
+            print("🔊 Playing positive statement audio")
+        } catch {
+            print("❌ Failed to play audio: \(error)")
         }
     }
 }
@@ -571,7 +604,29 @@ struct SavedOutfitPickerCard: View {
     }
 }
 
+// MARK: - Audio Player Helper
+
+import AVFoundation
+
+class AudioPlayerHelper {
+    private var audioPlayer: AVAudioPlayer?
+
+    init(audioData: Data) throws {
+        audioPlayer = try AVAudioPlayer(data: audioData)
+        audioPlayer?.prepareToPlay()
+    }
+
+    func play() {
+        audioPlayer?.play()
+    }
+
+    func stop() {
+        audioPlayer?.stop()
+    }
+}
+
 #Preview {
     VirtualTryOnView()
         .environmentObject(WardrobeViewModel())
+        .environmentObject(SavedOutfitsManager())
 }

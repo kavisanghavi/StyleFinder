@@ -344,12 +344,12 @@ class APIClient {
         return try decoder.decode(OutfitSuggestion.self, from: data)
     }
 
-    /// Generate virtual try-on image
+    /// Generate virtual try-on image with positive statement
     func virtualTryOn(
         userImage: UIImage,
         clothingItems: [UIImage],
         styleGuidance: String? = nil
-    ) async throws -> UIImage {
+    ) async throws -> (image: UIImage, statement: String?) {
         let url = URL(string: "\(baseURL)/virtual-tryon-outfit")!
 
         var request = URLRequest(url: url)
@@ -418,12 +418,14 @@ class APIClient {
         do {
             let jsonResponse = try JSONDecoder().decode(VirtualTryOnResponse.self, from: data)
 
+            let positiveStatement = jsonResponse.positive_statement
+
             // Try to get image from base64 first
             if let base64String = jsonResponse.try_on_image_base64,
                let imageData = Data(base64Encoded: base64String),
                let resultImage = UIImage(data: imageData) {
                 print("✅ Virtual try-on generated successfully from base64")
-                return resultImage
+                return (image: resultImage, statement: positiveStatement)
             }
 
             // Fallback to downloading from URL if available
@@ -435,7 +437,7 @@ class APIClient {
                     throw APIError.invalidResponse
                 }
                 print("✅ Virtual try-on downloaded successfully")
-                return resultImage
+                return (image: resultImage, statement: positiveStatement)
             }
 
             throw APIError.invalidResponse
@@ -530,6 +532,39 @@ class APIClient {
         let (data, _) = try await session.data(from: url)
         return try JSONDecoder().decode(HealthResponse.self, from: data)
     }
+
+    /// Generate speech from text using ElevenLabs
+    func textToSpeech(text: String, apiKey: String, voiceId: String = "agent_5501kac4v66tfb59z11sgcye49nz") async throws -> Data {
+        let url = URL(string: "https://api.elevenlabs.io/v1/text-to-speech/\(voiceId)")!
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "xi-api-key")
+
+        let requestBody: [String: Any] = [
+            "text": text,
+            "model_id": "eleven_monolingual_v1",
+            "voice_settings": [
+                "stability": 0.5,
+                "similarity_boost": 0.75
+            ]
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+
+        print("🔊 Generating speech with ElevenLabs...")
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw APIError.invalidResponse
+        }
+
+        print("✅ Speech generated (\(data.count) bytes)")
+        return data
+    }
 }
 
 // MARK: - Request Models
@@ -545,6 +580,7 @@ struct VirtualTryOnResponse: Codable {
     let message: String
     let try_on_image_url: String?
     let try_on_image_base64: String?
+    let positive_statement: String?
     let timestamp: String
 }
 
