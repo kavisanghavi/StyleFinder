@@ -2,75 +2,309 @@
 # Daytona Workspace Configuration
 # AI Closet Scanner Backend API
 # ============================================
+# Full configuration for Daytona cloud development platform
+# Docs: https://www.daytona.io/docs
 
+# Workspace metadata
 workspace:
-  name: closet-scanner-backend
-  description: "AI-powered wardrobe management backend API"
-  template: python-3.11
+  name: ai-closet-scanner
+  description: "AI-powered wardrobe management with Claude, Gemini, and ElevenLabs"
+  version: "1.0.0"
+  tags:
+    - ai
+    - fashion
+    - fastapi
+    - python
+    - hackathon
+    - anthropic
+    - claude
 
+# Daytona API integration
+daytona:
+  api_url: "https://app.daytona.io/api"
+  # API key should be set via environment variable: DAYTONA_API_KEY
+  # or configured in Daytona dashboard
+
+# Runtime configuration
 runtime:
   type: container
   image: python:3.11-slim
+  # Use devcontainer for advanced IDE integration
+  devcontainer: true
 
 # Exposed ports
 ports:
-  - 8000  # FastAPI server
+  - port: 8000
+    name: fastapi-backend
+    protocol: http
+    visibility: public
+    description: "FastAPI backend server"
+    labels:
+      service: backend
+      framework: fastapi
 
-# Environment variables (use secrets in production)
+# Port forwarding rules
+port_forwarding:
+  - local: 8000
+    remote: 8000
+    protocol: http
+
+# Environment variables
+# IMPORTANT: Sensitive values should be set in Daytona dashboard as secrets
 environment:
-  # Note: Set these in Daytona dashboard as secrets
+  # ==================== AI Services ====================
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
   ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY}
   GEMINI_API_KEY: ${GEMINI_API_KEY}
+
+  # ==================== Storage ====================
   TIGRIS_ACCESS_KEY: ${TIGRIS_ACCESS_KEY}
   TIGRIS_SECRET_KEY: ${TIGRIS_SECRET_KEY}
+  TIGRIS_ENDPOINT: "https://fly.storage.tigris.dev"
+  TIGRIS_BUCKET_NAME: "closet-scanner-backups"
+  TIGRIS_REGION: "auto"
+
+  # ==================== Monitoring ====================
   GALILEO_API_KEY: ${GALILEO_API_KEY}
+  GALILEO_PROJECT_NAME: "closet-scanner"
+
+  # ==================== Optional Services ====================
   BREX_API_KEY: ${BREX_API_KEY}
+  WEATHER_API_KEY: ${WEATHER_API_KEY}
+  CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+  CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+  CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+  REMOVEBG_API_KEY: ${REMOVEBG_API_KEY}
 
-  # Application config
-  ENVIRONMENT: production
-  BACKEND_URL: ${DAYTONA_WORKSPACE_URL}
+  # ==================== Application Settings ====================
+  ENVIRONMENT: "production"
+  BACKEND_URL: ${DAYTONA_WORKSPACE_URL:-http://localhost:8000}
+  SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
 
-  # Python
+  # ==================== Python Configuration ====================
   PYTHONUNBUFFERED: "1"
   PYTHONDONTWRITEBYTECODE: "1"
+  PIP_NO_CACHE_DIR: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
-# Startup commands
+  # ==================== API Configuration ====================
+  CLAUDE_MODEL: "claude-sonnet-4-20250514"
+  GEMINI_MODEL: "gemini-2.0-flash-exp"
+  ELEVENLABS_VOICE_ID: "EXAVITQu4vr4xnSDxMaL"
+  ELEVENLABS_MODEL: "eleven_multilingual_v2"
+
+# Lifecycle commands
 commands:
-  # Install dependencies
-  setup: |
-    cd backend-api
-    pip install --upgrade pip
-    pip install -r requirements.txt
-    echo "✅ Dependencies installed"
+  # Pre-build: Runs before workspace is created
+  prebuild: |
+    echo "🔧 Preparing AI Closet Scanner workspace..."
 
-  # Start the FastAPI server
+  # Install: Set up dependencies
+  install: |
+    echo "📦 Installing dependencies..."
+    cd backend-api
+    pip install --upgrade pip setuptools wheel
+    pip install -r requirements.txt
+    echo "✅ Dependencies installed successfully"
+
+  # Setup: Initialize environment
+  setup: |
+    echo "🔧 Setting up environment..."
+    cd backend-api
+
+    # Create .env if it doesn't exist
+    if [ ! -f .env ]; then
+      echo "📝 Creating .env file..."
+      cp .env.example .env
+      echo "⚠️  Remember to configure your API keys in Daytona dashboard!"
+    fi
+
+    # Make start script executable
+    chmod +x start.sh
+
+    echo "✅ Setup complete!"
+
+  # Start: Run the development server
   start: |
     cd backend-api
+    echo "🚀 Starting FastAPI development server..."
     uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # Run in production mode (no reload)
-  start-prod: |
+  # Start Production: Run with multiple workers
+  start:prod: |
     cd backend-api
-    uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    echo "🚀 Starting FastAPI in production mode..."
+    uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info
 
-  # Test the API
+  # Test: Run health checks
   test: |
     cd backend-api
+    echo "🏥 Running health checks..."
+    curl -f http://localhost:8000/health || echo "⚠️  Server not responding"
+
+  # Test API: Test all endpoints
+  test:api: |
+    cd backend-api
+    echo "🧪 Testing API endpoints..."
+    curl http://localhost:8000/
+    echo ""
     curl http://localhost:8000/health
+    echo ""
 
-  # View logs
+  # Logs: View application logs
   logs: |
-    tail -f /var/log/uvicorn.log
+    echo "📋 Viewing logs..."
+    tail -f /tmp/uvicorn.log 2>/dev/null || echo "No logs available yet"
 
-# Volume mounts (optional)
+  # Dashboard: Open metrics dashboard
+  dashboard: |
+    echo "📊 Opening dashboard..."
+    echo "Visit: ${DAYTONA_WORKSPACE_URL}/dashboard"
+
+  # Docs: Open API documentation
+  docs: |
+    echo "📚 Opening API documentation..."
+    echo "Visit: ${DAYTONA_WORKSPACE_URL}/docs"
+
+  # Clean: Remove cache and temporary files
+  clean: |
+    echo "🧹 Cleaning up..."
+    cd backend-api
+    find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+    find . -type f -name "*.pyc" -delete 2>/dev/null || true
+    echo "✅ Cleanup complete"
+
+  # Info: Display workspace information
+  info: |
+    echo "════════════════════════════════════════════════════"
+    echo "  🚀 AI Closet Scanner - Workspace Info"
+    echo "════════════════════════════════════════════════════"
+    echo ""
+    echo "📡 Backend URL: ${DAYTONA_WORKSPACE_URL}"
+    echo "📚 API Docs: ${DAYTONA_WORKSPACE_URL}/docs"
+    echo "📊 Dashboard: ${DAYTONA_WORKSPACE_URL}/dashboard"
+    echo "🏥 Health Check: ${DAYTONA_WORKSPACE_URL}/health"
+    echo ""
+    echo "🔧 Quick Commands:"
+    echo "  daytona exec -- make start     # Start server"
+    echo "  daytona exec -- make test      # Run tests"
+    echo "  daytona exec -- make dashboard # Open dashboard"
+    echo ""
+    echo "════════════════════════════════════════════════════"
+
+# Volume mounts
 volumes:
   - type: bind
     source: ./backend-api
     target: /workspace/backend-api
+    description: "Backend API source code"
+  - type: volume
+    source: python-packages
+    target: /usr/local/lib/python3.11/site-packages
+    description: "Python packages cache"
 
-# Resources
+# Resource allocation
 resources:
   cpu: "2"
   memory: "4Gi"
   storage: "20Gi"
+
+# GPU support (if needed for future AI features)
+gpu:
+  enabled: false
+  count: 0
+
+# Networking
+network:
+  mode: bridge
+  dns:
+    - 8.8.8.8
+    - 8.8.4.4
+
+# Health checks
+health_check:
+  enabled: true
+  endpoint: /health
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 30s
+
+# Auto-start configuration
+auto_start:
+  enabled: true
+  command: start
+
+# IDE configuration
+ide:
+  type: vscode
+  extensions:
+    - ms-python.python
+    - ms-python.vscode-pylance
+    - ms-python.black-formatter
+    - ms-azuretools.vscode-docker
+    - humao.rest-client
+  settings:
+    python.defaultInterpreterPath: /usr/local/bin/python3
+    python.formatting.provider: "black"
+    editor.formatOnSave: true
+
+# Git configuration
+git:
+  # Automatically initialize git if not present
+  auto_init: false
+  # Git hooks
+  hooks:
+    pre-commit: |
+      # Format Python code
+      black backend-api/app/*.py
+      echo "✅ Code formatted with black"
+
+# Secrets management
+secrets:
+  # Define which environment variables should be treated as secrets
+  # These should be configured in Daytona dashboard
+  required:
+    - ANTHROPIC_API_KEY
+    - ELEVENLABS_API_KEY
+    - GEMINI_API_KEY
+    - TIGRIS_ACCESS_KEY
+    - TIGRIS_SECRET_KEY
+    - GALILEO_API_KEY
+  optional:
+    - BREX_API_KEY
+    - WEATHER_API_KEY
+    - CLOUDINARY_API_KEY
+    - CLOUDINARY_API_SECRET
+    - REMOVEBG_API_KEY
+
+# Monitoring and observability
+monitoring:
+  enabled: true
+  metrics:
+    - name: api_requests
+      type: counter
+      description: "Total API requests"
+    - name: api_latency
+      type: histogram
+      description: "API response latency"
+  logging:
+    level: info
+    format: json
+
+# Backup configuration
+backup:
+  enabled: true
+  schedule: "0 0 * * *"  # Daily at midnight
+  retention: 7  # Keep 7 days of backups
+
+# Collaboration
+collaboration:
+  enabled: true
+  max_users: 5
+
+# Documentation
+docs:
+  readme: README.md
+  setup_guide: DAYTONA_SETUP.md
+  api_docs: http://localhost:8000/docs

@@ -296,52 +296,89 @@ private let baseURL = "https://your-daytona-url.daytona.app"
 
 ## 🏃 Daytona Deployment
 
-### 1. Install Daytona CLI
+> **Daytona** provides instant, fully-configured development environments with one command.
+>
+> **API Endpoint**: `https://app.daytona.io/api`
+
+### ⚡ Quick Start (2 Minutes)
+
+#### Method 1: Daytona Web Dashboard (Recommended)
+
+1. **Visit** [https://app.daytona.io/](https://app.daytona.io/) and sign in with GitHub
+2. **Click** "New Workspace" → Enter repository URL
+3. **Add Secrets** in Settings → Secrets (ANTHROPIC_API_KEY, ELEVENLABS_API_KEY, etc.)
+4. **Click** "Start Workspace" and wait ~2 min
+5. **Get Public URL** from dashboard and update iOS app `APIClient.swift`
+
+#### Method 2: Daytona CLI
 
 ```bash
+# Install Daytona CLI
 curl -sf https://download.daytona.io/daytona/install.sh | sh
-```
 
-### 2. Login to Daytona
-
-```bash
+# Login
 daytona login
+
+# Create workspace from GitHub
+daytona create https://github.com/your-username/StyleFinder
+
+# Set secrets
+daytona secret set ANTHROPIC_API_KEY=sk-ant-api03-xxx
+daytona secret set ELEVENLABS_API_KEY=xxx
+daytona secret set GEMINI_API_KEY=xxx
+
+# Start backend
+daytona run start
+
+# Get public URL
+daytona url ai-closet-scanner
+# Returns: https://ai-closet-scanner-abc123.daytona.app
 ```
 
-### 3. Create Workspace
+### 📖 Complete Guide
 
-```bash
-daytona create --name closet-scanner-backend \
-  --from-git https://github.com/your-username/closet-scanner
+For detailed instructions, troubleshooting, and advanced configuration, see:
+**[DAYTONA_SETUP.md](./DAYTONA_SETUP.md)** - Complete Daytona integration guide
+
+### 🔑 Required Secrets
+
+Configure these in Daytona dashboard or via CLI:
+
+- `ANTHROPIC_API_KEY` - Claude API key
+- `ELEVENLABS_API_KEY` - Voice synthesis
+- `GEMINI_API_KEY` - Virtual try-on
+- `TIGRIS_ACCESS_KEY` - Cloud storage
+- `TIGRIS_SECRET_KEY` - Cloud storage
+- `GALILEO_API_KEY` - LLM observability
+
+### 🌐 Access Your Deployment
+
+Once deployed, your backend will be available at:
+
+- **API**: `https://your-workspace.daytona.app`
+- **Docs**: `https://your-workspace.daytona.app/docs`
+- **Dashboard**: `https://your-workspace.daytona.app/dashboard`
+- **Health**: `https://your-workspace.daytona.app/health`
+
+### 🔄 Update iOS App
+
+Edit `ClosetAI/Services/APIClient.swift`:
+
+```swift
+// Update baseURL with your Daytona workspace URL
+private let baseURL = "https://your-workspace.daytona.app"
 ```
 
-### 4. Set Environment Variables
+### 🎯 What You Get
 
-In the Daytona dashboard, add your API keys as secrets.
-
-### 5. Start the Backend
-
-```bash
-daytona code closet-scanner-backend
-```
-
-Inside the Daytona workspace:
-
-```bash
-cd backend-api
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-### 6. Get Public URL
-
-```bash
-daytona url closet-scanner-backend
-```
-
-This will return your public URL: `https://closet-scanner-backend-xxx.daytona.app`
-
-Update the iOS app's `APIClient.swift` with this URL.
+✅ Fully configured Python 3.11 environment
+✅ All dependencies auto-installed
+✅ Public HTTPS URL for backend
+✅ Automatic SSL certificates
+✅ Health checks & auto-restart
+✅ Built-in monitoring dashboard
+✅ Secure secrets management
+✅ Zero DevOps configuration
 
 ---
 
