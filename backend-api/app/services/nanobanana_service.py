@@ -517,28 +517,42 @@ Return a clean PNG image of JUST the {item_color} {item_type} with no background
             clothing_pils = [Image.open(io.BytesIO(img)) for img in clothing_imgs]
 
             # Build the prompt for virtual try-on
-            prompt = """Create a photorealistic image of the person in the first image WEARING the clothing items from the additional images.
+            prompt = """TASK: Create a photorealistic image of the person WEARING the new clothing items.
 
-CRITICAL REQUIREMENTS:
-1. The person MUST BE WEARING the clothing items on their body - not floating or separate
-2. Composite the clothing ONTO the person's body naturally
-3. The clothing should replace what they're currently wearing
-4. Ensure proper fit and draping as if the person is actually wearing these clothes
-5. Maintain realistic shadows, lighting, and fabric folds on the person's body
-6. Preserve the person's:
-   - Exact face and facial features
-   - Body shape and proportions
-   - Pose and position
-   - Background scene
-7. Match the lighting between the clothing and person perfectly
-8. Make it look like a natural photograph where the person is genuinely wearing these clothes
+🔴 CRITICAL - REPLACE EXISTING CLOTHES 100%:
+You MUST completely REMOVE and REPLACE the person's current clothing with the new items shown.
+- REMOVE the shirt they're currently wearing → REPLACE with the new shirt from the clothing images
+- REMOVE the pants they're currently wearing → REPLACE with the new pants from the clothing images
+- The new clothes MUST BE ON THEIR BODY, not separate or floating
+- This is a COMPLETE wardrobe change - old clothes OUT, new clothes IN
 
-DO NOT:
-- Place clothing items separately in the scene
-- Overlay clothes on the background
-- Create a collage or side-by-side view
+🎯 EXACT REQUIREMENTS:
+1. IDENTIFY what the person is currently wearing (shirt, pants, etc.)
+2. COMPLETELY REMOVE those items from the image
+3. REPLACE them with the clothing items from the provided images
+4. The new clothes must FIT ON THE PERSON'S BODY naturally
+5. Position clothing exactly where it would be if worn:
+   - Shirt on torso, aligned with shoulders and arms
+   - Pants on legs, aligned with waist and feet
+   - Proper draping and fabric folds on the body
+6. Match the person's pose - if arms are visible, show sleeves on arms
+7. Realistic shadows cast BY the clothing ONTO the person
 
-OUTPUT: A single photorealistic image of the person wearing all the clothing items naturally."""
+✅ PRESERVE EXACTLY:
+- Person's face, head, hair, skin tone
+- Body proportions and build
+- Exact pose and position
+- Background scene
+- Lighting direction and quality
+
+⚠️ ABSOLUTELY DO NOT:
+- Leave original clothing visible
+- Show clothing floating or separate from body
+- Create a collage or side-by-side comparison
+- Place clothes in the background scene
+- Show both old and new clothes together
+
+OUTPUT: ONE photorealistic photo showing the SAME person in the SAME pose and location, but now wearing the NEW clothing items as if they actually put them on."""
 
             logger.info("🤖 Calling Gemini API for outfit try-on generation...")
 
