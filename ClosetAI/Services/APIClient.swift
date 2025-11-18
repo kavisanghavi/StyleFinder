@@ -378,24 +378,26 @@ class APIClient {
         body.append(modelImageData)
         body.append("\r\n".data(using: .utf8)!)
 
-        // Combine all clothing items into one composite image
-        let compositeImage = createCompositeImage(from: clothingItems)
-        guard let clothingImageData = compositeImage.jpegData(compressionQuality: 0.8) else {
-            throw APIError.imageConversionFailed
-        }
+        // Add each clothing item separately (up to 5 items)
+        for (index, clothingImage) in clothingItems.prefix(5).enumerated() {
+            guard let clothingImageData = clothingImage.jpegData(compressionQuality: 0.8) else {
+                throw APIError.imageConversionFailed
+            }
 
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"clothing_image\"; filename=\"outfit.jpg\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
-        body.append(clothingImageData)
-        body.append("\r\n".data(using: .utf8)!)
+            let fieldName = "clothing_image_\(index + 1)"
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"\(fieldName)\"; filename=\"clothing\(index + 1).jpg\"\r\n".data(using: .utf8)!)
+            body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+            body.append(clothingImageData)
+            body.append("\r\n".data(using: .utf8)!)
+        }
 
         // Close boundary
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
 
         request.httpBody = body
 
-        print("📤 Generating virtual try-on with \(clothingItems.count) clothing items combined into one outfit...")
+        print("📤 Generating virtual try-on with \(clothingItems.count) separate clothing items...")
 
         let (data, response) = try await session.data(for: request)
 
@@ -440,50 +442,6 @@ class APIClient {
         } catch {
             print("❌ Failed to parse virtual try-on response: \(error)")
             throw APIError.decodingError(error)
-        }
-    }
-
-    /// Create a composite image from multiple clothing items
-    private func createCompositeImage(from images: [UIImage]) -> UIImage {
-        guard !images.isEmpty else {
-            // Return a blank image if no items
-            return UIImage()
-        }
-
-        // If only one image, return it directly
-        if images.count == 1 {
-            return images[0]
-        }
-
-        // Create a grid layout for multiple items
-        let itemsPerRow = 2
-        let rows = (images.count + itemsPerRow - 1) / itemsPerRow
-
-        // Calculate canvas size (assuming all images are similar size)
-        let itemSize: CGFloat = 400 // Standard size for each item
-        let spacing: CGFloat = 20
-        let canvasWidth = CGFloat(itemsPerRow) * itemSize + CGFloat(itemsPerRow - 1) * spacing
-        let canvasHeight = CGFloat(rows) * itemSize + CGFloat(rows - 1) * spacing
-
-        // Create canvas
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: canvasWidth, height: canvasHeight))
-
-        return renderer.image { context in
-            // Fill with white background
-            UIColor.white.setFill()
-            context.fill(CGRect(x: 0, y: 0, width: canvasWidth, height: canvasHeight))
-
-            // Draw each image in grid
-            for (index, image) in images.enumerated() {
-                let row = index / itemsPerRow
-                let col = index % itemsPerRow
-
-                let x = CGFloat(col) * (itemSize + spacing)
-                let y = CGFloat(row) * (itemSize + spacing)
-
-                let rect = CGRect(x: x, y: y, width: itemSize, height: itemSize)
-                image.draw(in: rect)
-            }
         }
     }
 

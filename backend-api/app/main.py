@@ -522,7 +522,7 @@ async def style_outfit_smart(
 
         # Build wardrobe description for Claude
         items_description = "\n".join([
-            f"- ID: {item['id']}\n  Type: {item['type']}\n  Color: {item['color']}\n  Style: {item['style']}\n  Pattern: {item['pattern']}\n  Occasions: {', '.join(item.get('occasion', []))}"
+            f"- ID: {item['id']}\n  Type: {item['type']}\n  Color: {item['color']}\n  Style: {item['style']}\n  Pattern: {item['pattern']}\n  Occasions: {', '.join(item.get('occasion', []) or [])}"
             for item in wardrobe_items
         ])
 
@@ -541,14 +541,16 @@ Each variation should have a different style/vibe but all appropriate for the oc
 AVAILABLE WARDROBE:
 {items_description}
 
-IMPORTANT: Analyze each item carefully (colors, patterns, styles, occasions).
-Create 3 DIFFERENT complete outfits using ONLY items from the wardrobe above.
-
-Each outfit should:
-1. Be appropriate for {occasion}
-2. Have items that work well together (colors, patterns, formality)
-3. Respect the occasion field of items (formal items for formal occasions)
-4. Use ACTUAL item IDs from the wardrobe
+IMPORTANT RULES:
+1. Each outfit must have EXACTLY:
+   - ONE top (shirt, blouse, sweater, etc.) OR one dress
+   - ONE bottom (pants, skirt, jeans, etc.) - SKIP if dress
+   - Optional: shoes, outerwear, accessories
+2. NO duplicates - don't pick 2 tops or 2 bottoms
+3. Be appropriate for {occasion}
+4. Respect the occasion field of items (formal items for formal occasions)
+5. Colors/patterns must work well together
+6. Use ACTUAL item IDs from the wardrobe above
 
 Return ONLY valid JSON:
 {{
@@ -766,6 +768,108 @@ async def virtual_tryon(request: VirtualTryOnRequest):
 
     except Exception as e:
         logger.error(f"❌ Virtual try-on error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
+    "/virtual-tryon-outfit",
+    tags=["Virtual Try-On"],
+    summary="Try on outfit with Gemini",
+    description="Upload a model image and multiple clothing images to see the model wearing the outfit using AI image generation."
+)
+async def virtual_tryon_outfit(
+    model_image: UploadFile = File(..., description="Image of the person/model"),
+    user_id: Optional[str] = Form(None, description="Optional user ID for organizing images"),
+    clothing_image_1: Optional[UploadFile] = File(None, description="First clothing item"),
+    clothing_image_2: Optional[UploadFile] = File(None, description="Second clothing item"),
+    clothing_image_3: Optional[UploadFile] = File(None, description="Third clothing item"),
+    clothing_image_4: Optional[UploadFile] = File(None, description="Fourth clothing item"),
+    clothing_image_5: Optional[UploadFile] = File(None, description="Fifth clothing item"),
+):
+    """
+    Generate a virtual try-on image showing a person wearing an outfit.
+
+    This endpoint:
+    1. Takes a model image and multiple clothing images (separate items)
+    2. Uses Gemini to generate a photorealistic image of the model wearing all items
+    3. Saves the generated image to Tigris
+    4. Returns the Tigris URL and image metadata
+
+    Args:
+        model_image: Photo of the person/model
+        clothing_image_1-5: Individual clothing item images
+        user_id: Optional user identifier
+
+    Returns:
+        JSON with generated image URL and metadata
+
+    Raises:
+        HTTPException: If generation fails
+    """
+    try:
+        logger.info("👔 Generating outfit virtual try-on with Gemini...")
+
+        # Read model image
+        model_data = await model_image.read()
+        model_base64 = base64.b64encode(model_data).decode('utf-8')
+
+        # Collect all clothing images
+        clothing_files = [
+            clothing_image_1, clothing_image_2, clothing_image_3,
+            clothing_image_4, clothing_image_5
+        ]
+
+        # Read and encode clothing images
+        clothing_base64_list = []
+        for clothing_file in clothing_files:
+            if clothing_file is not None:
+                clothing_data = await clothing_file.read()
+                clothing_base64 = base64.b64encode(clothing_data).decode('utf-8')
+                clothing_base64_list.append(clothing_base64)
+
+        if not clothing_base64_list:
+            raise HTTPException(status_code=400, detail="At least one clothing image is required")
+
+        logger.info(f"📸 Processing {len(clothing_base64_list)} clothing items...")
+
+        # Generate try-on with Gemini
+        logger.info("🤖 Calling Gemini for virtual try-on generation...")
+        result_image = await nanobanana_service.generate_outfit_tryon(
+            model_image=model_base64,
+            clothing_images=clothing_base64_list
+        )
+
+        # Upload generated image to Tigris
+        try_on_url = None
+        if tigris_service.enabled and result_image:
+            try:
+                logger.info("☁️  Uploading virtual try-on to Tigris...")
+                import time
+                timestamp = int(time.time())
+                filename = f"virtual-tryon-{timestamp}.png"
+                try_on_url = await tigris_service.upload_image(
+                    image_bytes=result_image,
+                    filename=filename,
+                    content_type="image/png",
+                    user_id=user_id
+                )
+                logger.info(f"✅ Virtual try-on uploaded: {try_on_url}")
+            except Exception as e:
+                logger.warning(f"⚠️  Failed to upload to Tigris: {e}")
+
+        # Encode result as base64 for response
+        result_base64 = base64.b64encode(result_image).decode('utf-8')
+
+        return {
+            "success": True,
+            "message": "Virtual try-on generated successfully",
+            "try_on_image_url": try_on_url,
+            "try_on_image_base64": result_base64,
+            "timestamp": tigris_service.get_timestamp()
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Virtual try-on outfit error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
