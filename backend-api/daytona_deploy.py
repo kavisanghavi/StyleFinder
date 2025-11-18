@@ -195,7 +195,7 @@ def start_server(sandbox):
         session_id,
         SessionExecuteRequest(
             command="cd /workspace && uvicorn app.main:app --host 0.0.0.0 --port 8000",
-            var_async=True
+            run_async=True
         )
     )
 
