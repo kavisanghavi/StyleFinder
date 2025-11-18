@@ -17,6 +17,7 @@ struct VirtualTryOnView: View {
     @State private var resultImage: UIImage?
     @State private var positiveStatement: String?
     @State private var audioPlayer: AudioPlayerHelper?
+    @State private var isAudioPlaying = false
     @State private var showingUserPicker = false
     @State private var showingOutfitPicker = false
     @State private var isGenerating = false
@@ -141,14 +142,19 @@ struct VirtualTryOnView: View {
                             // Positive Statement from Claude
                             if let statement = positiveStatement {
                                 HStack(spacing: 12) {
-                                    Image(systemName: "speaker.wave.2.fill")
-                                        .font(.system(size: 20))
-                                        .foregroundColor(Color(hex: "EC4899"))
+                                    Button(action: toggleAudio) {
+                                        Image(systemName: isAudioPlaying ? "pause.circle.fill" : "play.circle.fill")
+                                            .font(.system(size: 32))
+                                            .foregroundColor(Color(hex: "EC4899"))
+                                    }
+                                    .buttonStyle(.plain)
 
                                     Text(statement)
                                         .font(.system(size: 16, weight: .medium))
                                         .foregroundColor(.primary)
                                         .multilineTextAlignment(.leading)
+
+                                    Spacer()
                                 }
                                 .padding(20)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -298,6 +304,7 @@ struct VirtualTryOnView: View {
             positiveStatement = nil
             audioPlayer?.stop()
             audioPlayer = nil
+            isAudioPlaying = false
         }
     }
 
@@ -305,9 +312,22 @@ struct VirtualTryOnView: View {
         do {
             audioPlayer = try AudioPlayerHelper(audioData: data)
             audioPlayer?.play()
+            isAudioPlaying = true
             print("🔊 Playing positive statement audio")
         } catch {
             print("❌ Failed to play audio: \(error)")
+        }
+    }
+
+    func toggleAudio() {
+        if isAudioPlaying {
+            audioPlayer?.pause()
+            isAudioPlaying = false
+            print("⏸️ Audio paused")
+        } else {
+            audioPlayer?.resume()
+            isAudioPlaying = true
+            print("▶️ Audio resumed")
         }
     }
 }
@@ -644,6 +664,14 @@ class AudioPlayerHelper {
     }
 
     func play() {
+        audioPlayer?.play()
+    }
+
+    func pause() {
+        audioPlayer?.pause()
+    }
+
+    func resume() {
         audioPlayer?.play()
     }
 
