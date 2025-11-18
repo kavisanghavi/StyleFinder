@@ -16,6 +16,7 @@
 import Foundation
 import CryptoKit
 import Security
+import UIKit
 
 class EncryptionService {
     // MARK: - Singleton
@@ -206,8 +207,6 @@ enum EncryptionError: LocalizedError {
 }
 
 // MARK: - UIImage Extension
-
-import UIKit
 
 extension UIImage {
     /// Convenience method to encrypt this image
