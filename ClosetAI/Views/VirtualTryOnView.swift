@@ -8,11 +8,15 @@
 import SwiftUI
 
 struct VirtualTryOnView: View {
+    @EnvironmentObject var wardrobeVM: WardrobeViewModel
+    @StateObject private var savedOutfitsManager = SavedOutfitsManager()
+
     @State private var userPhoto: UIImage?
-    @State private var clothingPhoto: UIImage?
+    @State private var selectedOutfit: SavedOutfit?
+    @State private var outfitImages: [UIImage] = []
     @State private var resultImage: UIImage?
     @State private var showingUserPicker = false
-    @State private var showingClothingPicker = false
+    @State private var showingOutfitPicker = false
     @State private var isGenerating = false
     @State private var errorMessage = ""
     @State private var showError = false
@@ -62,20 +66,21 @@ struct VirtualTryOnView: View {
                             showingUserPicker = true
                         }
 
-                        // Clothing Photo
-                        PhotoSelectionCard(
-                            image: clothingPhoto,
-                            title: "Clothing",
-                            icon: "tshirt.fill",
+                        // Saved Outfit
+                        SavedOutfitSelectionCard(
+                            selectedOutfit: selectedOutfit,
+                            outfitImages: outfitImages,
+                            title: "Saved Outfit",
+                            icon: "sparkles",
                             color: "EC4899"
                         ) {
-                            showingClothingPicker = true
+                            showingOutfitPicker = true
                         }
                     }
                     .padding(.horizontal, 20)
 
                     // Generate Button
-                    if userPhoto != nil && clothingPhoto != nil && resultImage == nil {
+                    if userPhoto != nil && selectedOutfit != nil && resultImage == nil {
                         Button(action: generateTryOn) {
                             HStack(spacing: 12) {
                                 if isGenerating {
@@ -160,14 +165,14 @@ struct VirtualTryOnView: View {
                     }
 
                     // Instructions (when no photos selected)
-                    if userPhoto == nil || clothingPhoto == nil {
+                    if userPhoto == nil || selectedOutfit == nil {
                         VStack(alignment: .leading, spacing: 16) {
                             Text("How It Works")
                                 .font(.system(size: 20, weight: .semibold))
 
                             VStack(spacing: 12) {
                                 InstructionRow(number: "1", text: "Upload a photo of yourself")
-                                InstructionRow(number: "2", text: "Select the clothing item to try on")
+                                InstructionRow(number: "2", text: "Select a saved outfit to try on")
                                 InstructionRow(number: "3", text: "Let AI show you how it looks!")
                             }
                         }
@@ -186,8 +191,14 @@ struct VirtualTryOnView: View {
             .sheet(isPresented: $showingUserPicker) {
                 ImagePicker(image: $userPhoto, sourceType: .photoLibrary)
             }
-            .sheet(isPresented: $showingClothingPicker) {
-                ImagePicker(image: $clothingPhoto, sourceType: .photoLibrary)
+            .sheet(isPresented: $showingOutfitPicker) {
+                SavedOutfitPickerSheet(
+                    savedOutfitsManager: savedOutfitsManager,
+                    wardrobeVM: wardrobeVM,
+                    selectedOutfit: $selectedOutfit,
+                    outfitImages: $outfitImages,
+                    isPresented: $showingOutfitPicker
+                )
             }
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) {}
@@ -199,8 +210,8 @@ struct VirtualTryOnView: View {
 
     func generateTryOn() {
         guard let userImg = userPhoto,
-              let clothingImg = clothingPhoto else {
-            errorMessage = "Please select both photos"
+              !outfitImages.isEmpty else {
+            errorMessage = "Please select your photo and an outfit"
             showError = true
             return
         }
@@ -211,8 +222,8 @@ struct VirtualTryOnView: View {
             do {
                 let result = try await APIClient.shared.virtualTryOn(
                     userImage: userImg,
-                    clothingItems: [clothingImg],
-                    styleGuidance: nil
+                    clothingItems: outfitImages,
+                    styleGuidance: selectedOutfit?.stylingTips
                 )
 
                 await MainActor.run {
@@ -235,7 +246,8 @@ struct VirtualTryOnView: View {
         withAnimation(.spring(response: 0.3)) {
             resultImage = nil
             userPhoto = nil
-            clothingPhoto = nil
+            selectedOutfit = nil
+            outfitImages = []
         }
     }
 }
@@ -323,6 +335,243 @@ struct InstructionRow: View {
     }
 }
 
+// MARK: - Saved Outfit Selection Card
+
+struct SavedOutfitSelectionCard: View {
+    let selectedOutfit: SavedOutfit?
+    let outfitImages: [UIImage]
+    let title: String
+    let icon: String
+    let color: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 12) {
+                if let outfit = selectedOutfit, !outfitImages.isEmpty {
+                    // Show preview of outfit items
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.white)
+                            .frame(width: 140, height: 140)
+
+                        // Show up to 4 clothing items in a grid
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4) {
+                            ForEach(outfitImages.prefix(4), id: \.self) { image in
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 65, height: 65)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            }
+                        }
+                        .frame(width: 134, height: 134)
+                    }
+                } else {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color(hex: color).opacity(0.1))
+                            .frame(width: 140, height: 140)
+
+                        VStack(spacing: 8) {
+                            Image(systemName: icon)
+                                .font(.system(size: 32, weight: .light))
+                                .foregroundColor(Color(hex: color))
+
+                            Text("Tap to Select")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+
+                Text(selectedOutfit?.name ?? title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 2)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Saved Outfit Picker Sheet
+
+struct SavedOutfitPickerSheet: View {
+    let savedOutfitsManager: SavedOutfitsManager
+    let wardrobeVM: WardrobeViewModel
+    @Binding var selectedOutfit: SavedOutfit?
+    @Binding var outfitImages: [UIImage]
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color(hex: "F8F9FA").ignoresSafeArea()
+
+                if savedOutfitsManager.savedOutfits.isEmpty {
+                    // Empty state
+                    VStack(spacing: 20) {
+                        Image(systemName: "heart.slash")
+                            .font(.system(size: 64, weight: .ultraLight))
+                            .foregroundColor(.secondary)
+
+                        Text("No Saved Outfits")
+                            .font(.system(size: 24, weight: .bold))
+
+                        Text("Create and save outfits in the Style tab to try them on")
+                            .font(.system(size: 16))
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                    }
+                } else {
+                    ScrollView {
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                            ForEach(savedOutfitsManager.savedOutfits) { outfit in
+                                SavedOutfitPickerCard(
+                                    outfit: outfit,
+                                    wardrobeVM: wardrobeVM
+                                ) {
+                                    selectOutfit(outfit)
+                                }
+                            }
+                        }
+                        .padding(20)
+                    }
+                }
+            }
+            .navigationTitle("Select Outfit")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Cancel") {
+                        isPresented = false
+                    }
+                    .foregroundColor(Color(hex: "6366F1"))
+                }
+            }
+        }
+    }
+
+    func selectOutfit(_ outfit: SavedOutfit) {
+        selectedOutfit = outfit
+
+        // Load all clothing item images
+        Task {
+            let items = outfit.getItems(from: wardrobeVM.items)
+            var images: [UIImage] = []
+
+            for item in items {
+                if let url = URL(string: item.imagePath) {
+                    do {
+                        let (data, _) = try await URLSession.shared.data(from: url)
+                        if let image = UIImage(data: data) {
+                            images.append(image)
+                        }
+                    } catch {
+                        print("Failed to load image: \(error)")
+                    }
+                }
+            }
+
+            await MainActor.run {
+                outfitImages = images
+                isPresented = false
+            }
+        }
+    }
+}
+
+// MARK: - Saved Outfit Picker Card
+
+struct SavedOutfitPickerCard: View {
+    let outfit: SavedOutfit
+    let wardrobeVM: WardrobeViewModel
+    let action: () -> Void
+
+    @State private var itemImages: [UIImage] = []
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 12) {
+                // Outfit preview
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.white)
+                        .frame(height: 140)
+
+                    if itemImages.isEmpty {
+                        ProgressView()
+                    } else {
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4) {
+                            ForEach(itemImages.prefix(4), id: \.self) { image in
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 65)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            }
+                        }
+                        .padding(4)
+                    }
+                }
+
+                // Outfit info
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(outfit.name)
+                        .font(.system(size: 16, weight: .semibold))
+                        .lineLimit(1)
+
+                    Text(outfit.occasion)
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(12)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
+        .task {
+            loadImages()
+        }
+    }
+
+    func loadImages() {
+        Task {
+            let items = outfit.getItems(from: wardrobeVM.items)
+            var images: [UIImage] = []
+
+            for item in items {
+                if let url = URL(string: item.imagePath) {
+                    do {
+                        let (data, _) = try await URLSession.shared.data(from: url)
+                        if let image = UIImage(data: data) {
+                            images.append(image)
+                        }
+                    } catch {
+                        print("Failed to load image: \(error)")
+                    }
+                }
+            }
+
+            await MainActor.run {
+                itemImages = images
+            }
+        }
+    }
+}
+
 #Preview {
     VirtualTryOnView()
+        .environmentObject(WardrobeViewModel())
 }
