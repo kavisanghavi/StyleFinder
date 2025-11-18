@@ -4,7 +4,7 @@ Database Models
 SQLAlchemy models for storing clothing items and user data.
 """
 
-from sqlalchemy import Column, String, Float, DateTime, Integer, JSON
+from sqlalchemy import Column, String, Float, DateTime, Integer, JSON, Boolean, Index
 from sqlalchemy.sql import func
 from app.database import Base
 from datetime import datetime
@@ -15,6 +15,7 @@ class ClothingItem(Base):
     Clothing Item Model
 
     Stores analyzed clothing items with metadata and image URLs.
+    Optimized for fast queries with indexes on commonly searched fields.
     """
     __tablename__ = "clothing_items"
 
@@ -28,11 +29,11 @@ class ClothingItem(Base):
     original_image_url = Column(String, nullable=True)
     extracted_image_url = Column(String, nullable=True)  # Background removed
 
-    # Claude Analysis Results
-    type = Column(String, nullable=False)  # shirt, pants, dress, etc.
-    color = Column(String, nullable=False)
-    pattern = Column(String, nullable=False)
-    style = Column(String, nullable=False)
+    # Claude Analysis Results (all indexed for fast queries)
+    type = Column(String, nullable=False, index=True)  # shirt, pants, dress, etc.
+    color = Column(String, nullable=False, index=True)
+    pattern = Column(String, nullable=False, index=True)
+    style = Column(String, nullable=False, index=True)
     confidence = Column(Float, nullable=False)
 
     # Arrays stored as JSON
@@ -51,7 +52,19 @@ class ClothingItem(Base):
 
     # Usage tracking
     worn_count = Column(Integer, default=0)
-    favorite = Column(Integer, default=0)  # 0 = false, 1 = true (SQLite doesn't have boolean)
+    favorite = Column(Boolean, default=False)
+
+    # Composite indexes for common query patterns
+    __table_args__ = (
+        # Index for querying by user and type (e.g., "all my jeans")
+        Index('idx_user_type', 'user_id', 'type'),
+        # Index for querying by user, type, and color (e.g., "blue jeans")
+        Index('idx_user_type_color', 'user_id', 'type', 'color'),
+        # Index for querying by user and color (e.g., "all blue items")
+        Index('idx_user_color', 'user_id', 'color'),
+        # Index for querying favorites
+        Index('idx_user_favorite', 'user_id', 'favorite'),
+    )
 
     def to_dict(self):
         """Convert to dictionary for JSON response."""
@@ -74,5 +87,5 @@ class ClothingItem(Base):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "last_worn_at": self.last_worn_at.isoformat() if self.last_worn_at else None,
             "worn_count": self.worn_count,
-            "favorite": bool(self.favorite)
+            "favorite": self.favorite
         }

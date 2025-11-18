@@ -1,23 +1,27 @@
 """
 Database Configuration
 
-SQLAlchemy setup for SQLite database to store clothing items.
+SQLAlchemy setup for PostgreSQL/Supabase database to store clothing items.
 """
 
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from app.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
 
-# SQLite database URL
-SQLALCHEMY_DATABASE_URL = "sqlite:///./closet_ai.db"
+# PostgreSQL database URL from settings
+SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
 
 # Create engine
+# PostgreSQL doesn't need check_same_thread like SQLite
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False}  # Needed for SQLite
+    pool_pre_ping=True,  # Verify connections before using them
+    pool_size=10,  # Connection pool size
+    max_overflow=20  # Max connections beyond pool_size
 )
 
 # Create SessionLocal class

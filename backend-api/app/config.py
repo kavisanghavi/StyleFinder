@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     # ==================== Weather API (Optional) ====================
     WEATHER_API_KEY: Optional[str] = None
 
+    # ==================== Database Settings ====================
+    DATABASE_URL: Optional[str] = "postgresql://postgres:kuUDKd29pbrwwC6s@db.cnnobgvxdpevzxjfoprs.supabase.co:5432/postgres"
+
     # ==================== Application Settings ====================
     ENVIRONMENT: str = "development"
     BACKEND_URL: str = "http://localhost:8000"

@@ -485,6 +485,344 @@ async def get_user_closet(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get(
+    "/closet/{user_id}/search",
+    tags=["Closet"],
+    summary="Search closet with filters",
+    description="Search clothing items with filters like type, color, pattern, style, season, and occasion."
+)
+async def search_closet(
+    user_id: str,
+    type: Optional[str] = None,
+    color: Optional[str] = None,
+    pattern: Optional[str] = None,
+    style: Optional[str] = None,
+    season: Optional[str] = None,
+    occasion: Optional[str] = None,
+    favorite: Optional[bool] = None,
+    fuzzy: Optional[bool] = True,  # Enable fuzzy matching by default
+    db: Session = Depends(get_db)
+):
+    """
+    Search clothing items with various filters.
+
+    Supports both exact and fuzzy matching:
+    - Exact: type="jeans" matches only "jeans"
+    - Fuzzy (default): type="jean" matches "jeans", "denim jeans", etc.
+
+    Examples:
+    - /closet/user123/search?type=jeans
+    - /closet/user123/search?type=jeans&color=blue
+    - /closet/user123/search?color=blue&fuzzy=false (exact match)
+    - /closet/user123/search?favorite=true
+
+    Args:
+        user_id: User identifier
+        type: Clothing type (shirt, pants, jeans, etc.)
+        color: Primary color
+        pattern: Pattern type
+        style: Style category
+        season: Season (spring, summer, fall, winter)
+        occasion: Occasion (casual, formal, work, etc.)
+        favorite: Filter by favorite items
+        fuzzy: Enable fuzzy/partial matching (default: True)
+
+    Returns:
+        List of matching clothing items
+    """
+    try:
+        # Start with base query
+        query = db.query(ClothingItemModel).filter(ClothingItemModel.user_id == user_id)
+
+        # Apply filters based on fuzzy matching
+        if type:
+            if fuzzy:
+                query = query.filter(ClothingItemModel.type.ilike(f"%{type}%"))
+            else:
+                query = query.filter(ClothingItemModel.type.ilike(type))
+
+        if color:
+            if fuzzy:
+                query = query.filter(ClothingItemModel.color.ilike(f"%{color}%"))
+            else:
+                query = query.filter(ClothingItemModel.color.ilike(color))
+
+        if pattern:
+            if fuzzy:
+                query = query.filter(ClothingItemModel.pattern.ilike(f"%{pattern}%"))
+            else:
+                query = query.filter(ClothingItemModel.pattern.ilike(pattern))
+
+        if style:
+            if fuzzy:
+                query = query.filter(ClothingItemModel.style.ilike(f"%{style}%"))
+            else:
+                query = query.filter(ClothingItemModel.style.ilike(style))
+
+        # JSON array filters for season and occasion
+        if season:
+            # PostgreSQL JSON contains operator
+            from sqlalchemy import cast, String
+            query = query.filter(
+                cast(ClothingItemModel.season, String).ilike(f"%{season}%")
+            )
+
+        if occasion:
+            from sqlalchemy import cast, String
+            query = query.filter(
+                cast(ClothingItemModel.occasion, String).ilike(f"%{occasion}%")
+            )
+
+        if favorite is not None:
+            query = query.filter(ClothingItemModel.favorite == favorite)
+
+        # Execute query
+        items = query.order_by(ClothingItemModel.created_at.desc()).all()
+
+        return {
+            "user_id": user_id,
+            "filters": {
+                "type": type,
+                "color": color,
+                "pattern": pattern,
+                "style": style,
+                "season": season,
+                "occasion": occasion,
+                "favorite": favorite,
+                "fuzzy": fuzzy
+            },
+            "item_count": len(items),
+            "items": [item.to_dict() for item in items]
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Search failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
+    "/closet/{user_id}/natural-search",
+    tags=["Closet"],
+    summary="Natural language search using Claude",
+    description="Search your closet using natural language queries like 'show me all my blue jeans' or 'find a white top and black pants'."
+)
+async def natural_language_search(
+    user_id: str,
+    query: str = Body(..., embed=True),
+    db: Session = Depends(get_db)
+):
+    """
+    Search clothing items using natural language powered by Claude.
+
+    Claude will understand your query and translate it into appropriate filters.
+
+    Examples:
+    - "Show me all my jeans"
+    - "Find a blue jeans and a white top"
+    - "What casual shirts do I have?"
+    - "Show me winter clothes"
+    - "Find formal wear for a party"
+
+    Args:
+        user_id: User identifier
+        query: Natural language search query
+
+    Returns:
+        List of matching clothing items with explanation
+    """
+    try:
+        logger.info(f"🔍 Natural language search: '{query}' for user {user_id}")
+
+        # First, get all user's items to provide context
+        all_items = db.query(ClothingItemModel).filter(
+            ClothingItemModel.user_id == user_id
+        ).all()
+
+        if not all_items:
+            return {
+                "user_id": user_id,
+                "query": query,
+                "explanation": "You don't have any items in your closet yet.",
+                "item_count": 0,
+                "items": []
+            }
+
+        # Build context for Claude
+        item_summary = {}
+        for item in all_items:
+            item_type = item.type.lower()
+            if item_type not in item_summary:
+                item_summary[item_type] = []
+            item_summary[item_type].append({
+                "id": item.id,
+                "color": item.color,
+                "pattern": item.pattern,
+                "style": item.style,
+                "season": item.season,
+                "occasion": item.occasion
+            })
+
+        # Create prompt for Claude to parse the query
+        search_prompt = f"""You are a wardrobe assistant helping a user search their closet.
+
+User's query: "{query}"
+
+Available clothing types in their closet:
+{chr(10).join([f"- {item_type}: {len(items)} items" for item_type, items in item_summary.items()])}
+
+Parse the user's query and extract the following filters:
+- type: clothing type (shirt, pants, jeans, dress, jacket, etc.)
+- color: color name
+- pattern: pattern type (solid, striped, floral, etc.)
+- style: style category (casual, formal, athletic, etc.)
+- season: season name (spring, summer, fall, winter)
+- occasion: occasion type (work, casual, formal, party, etc.)
+
+Return ONLY a JSON object with the extracted filters. If a filter is not mentioned, omit it.
+If the user is asking for multiple items (e.g., "blue jeans AND white top"), return an array of filter objects.
+
+Example 1:
+Query: "show me all my jeans"
+Response: {{"type": "jeans"}}
+
+Example 2:
+Query: "find a blue jeans and a white top"
+Response: [{{"type": "jeans", "color": "blue"}}, {{"type": "top", "color": "white"}}]
+
+Example 3:
+Query: "what casual shirts do I have?"
+Response: {{"type": "shirt", "style": "casual"}}
+
+Now parse the user's query and return the JSON:"""
+
+        # Call Claude to parse the query
+        import anthropic
+        client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+
+        response = client.messages.create(
+            model=settings.CLAUDE_MODEL,
+            max_tokens=500,
+            messages=[{
+                "role": "user",
+                "content": search_prompt
+            }]
+        )
+
+        # Parse Claude's response
+        import json
+        filters_text = response.content[0].text.strip()
+        # Remove markdown code blocks if present
+        if filters_text.startswith("```"):
+            filters_text = filters_text.split("```")[1]
+            if filters_text.startswith("json"):
+                filters_text = filters_text[4:]
+            filters_text = filters_text.strip()
+
+        filters = json.loads(filters_text)
+        logger.info(f"📋 Extracted filters: {filters}")
+
+        # Check if we have multiple filter sets (for queries like "jeans AND top")
+        if isinstance(filters, list):
+            # Search for each filter set and combine results
+            all_results = []
+            for filter_set in filters:
+                query_builder = db.query(ClothingItemModel).filter(
+                    ClothingItemModel.user_id == user_id
+                )
+
+                # Apply filters
+                if "type" in filter_set:
+                    query_builder = query_builder.filter(
+                        ClothingItemModel.type.ilike(f"%{filter_set['type']}%")
+                    )
+                if "color" in filter_set:
+                    query_builder = query_builder.filter(
+                        ClothingItemModel.color.ilike(f"%{filter_set['color']}%")
+                    )
+                if "pattern" in filter_set:
+                    query_builder = query_builder.filter(
+                        ClothingItemModel.pattern.ilike(f"%{filter_set['pattern']}%")
+                    )
+                if "style" in filter_set:
+                    query_builder = query_builder.filter(
+                        ClothingItemModel.style.ilike(f"%{filter_set['style']}%")
+                    )
+                if "season" in filter_set:
+                    from sqlalchemy import cast, String
+                    query_builder = query_builder.filter(
+                        cast(ClothingItemModel.season, String).ilike(f"%{filter_set['season']}%")
+                    )
+                if "occasion" in filter_set:
+                    from sqlalchemy import cast, String
+                    query_builder = query_builder.filter(
+                        cast(ClothingItemModel.occasion, String).ilike(f"%{filter_set['occasion']}%")
+                    )
+
+                results = query_builder.all()
+                all_results.extend(results)
+
+            # Remove duplicates based on ID
+            unique_results = {item.id: item for item in all_results}.values()
+            items = list(unique_results)
+        else:
+            # Single filter set
+            query_builder = db.query(ClothingItemModel).filter(
+                ClothingItemModel.user_id == user_id
+            )
+
+            # Apply filters
+            if "type" in filters:
+                query_builder = query_builder.filter(
+                    ClothingItemModel.type.ilike(f"%{filters['type']}%")
+                )
+            if "color" in filters:
+                query_builder = query_builder.filter(
+                    ClothingItemModel.color.ilike(f"%{filters['color']}%")
+                )
+            if "pattern" in filters:
+                query_builder = query_builder.filter(
+                    ClothingItemModel.pattern.ilike(f"%{filters['pattern']}%")
+                )
+            if "style" in filters:
+                query_builder = query_builder.filter(
+                    ClothingItemModel.style.ilike(f"%{filters['style']}%")
+                )
+            if "season" in filters:
+                from sqlalchemy import cast, String
+                query_builder = query_builder.filter(
+                    cast(ClothingItemModel.season, String).ilike(f"%{filters['season']}%")
+                )
+            if "occasion" in filters:
+                from sqlalchemy import cast, String
+                query_builder = query_builder.filter(
+                    cast(ClothingItemModel.occasion, String).ilike(f"%{filters['occasion']}%")
+                )
+
+            items = query_builder.order_by(ClothingItemModel.created_at.desc()).all()
+
+        # Generate explanation
+        if items:
+            explanation = f"Found {len(items)} item(s) matching your query: '{query}'"
+        else:
+            explanation = f"No items found matching your query: '{query}'. Try adjusting your search."
+
+        return {
+            "user_id": user_id,
+            "query": query,
+            "extracted_filters": filters,
+            "explanation": explanation,
+            "item_count": len(items),
+            "items": [item.to_dict() for item in items]
+        }
+
+    except json.JSONDecodeError as e:
+        logger.error(f"❌ Failed to parse Claude's response: {e}")
+        raise HTTPException(status_code=500, detail="Failed to parse search query. Please try rephrasing.")
+    except Exception as e:
+        logger.error(f"❌ Natural language search failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ==================== Outfit Generation ====================
 
 @app.post(
