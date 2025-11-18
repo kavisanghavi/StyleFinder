@@ -43,7 +43,8 @@
       "Bash(export PYTHONPATH=.)",
       "Bash(./start.sh)",
       "Bash(SUPABASE_URL=https://cnnobgvxdpevzxjfoprs.supabase.co SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNubm9iZ3Z4ZHBldnp4amZvcHJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0ODUxNzEsImV4cCI6MjA3OTA2MTE3MX0.YIOvgksDCDfsrhxyWtg90ibpl0lQ0CXix9_iK-U6GlE PYTHONPATH=. ./venv/bin/python3:*)",
-      "Bash(nslookup:*)"
+      "Bash(nslookup:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
