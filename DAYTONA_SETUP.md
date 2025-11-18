@@ -243,7 +243,7 @@ daytona = Daytona()
 
 # Build custom image
 image = (
-    Image.python("3.11")
+    Image.debian_slim("3.11")  # Debian with Python 3.11
     .pip_install([
         "fastapi==0.104.1",
         "uvicorn[standard]==0.24.0",
@@ -424,7 +424,7 @@ Update `daytona_deploy.py` to include missing packages:
 
 ```python
 image = (
-    Image.python("3.11")
+    Image.debian_slim("3.11")  # Debian with Python 3.11
     .pip_install([
         "your-missing-package",
         # ... existing packages

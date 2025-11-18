@@ -71,7 +71,7 @@ def create_sandbox():
     # Build custom image with dependencies
     print("📦 Building custom image with dependencies...")
     image = (
-        Image.python("3.11")
+        Image.debian_slim("3.11")  # Debian with Python 3.11
         .apt_install([
             "gcc",
             "curl",
