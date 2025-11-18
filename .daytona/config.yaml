@@ -1,24 +1,36 @@
 # ============================================
-# Daytona Workspace Configuration
-# AI Closet Scanner Backend API
+# Daytona Configuration for AI Closet Scanner
 # ============================================
+# Daytona SDK configuration for creating development sandboxes
+# Docs: https://www.daytona.io/docs/
+
+# This file is used if you're deploying via traditional methods
+# For Daytona SDK integration, see: backend-api/daytona_deploy.py
 
 workspace:
-  name: closet-scanner-backend
-  description: "AI-powered wardrobe management backend API"
-  template: python-3.11
+  name: ai-closet-scanner
+  description: "AI-powered wardrobe management with Claude, Gemini, and ElevenLabs"
+  version: "1.0.0"
 
+# Runtime configuration
 runtime:
   type: container
   image: python:3.11-slim
 
 # Exposed ports
 ports:
-  - 8000  # FastAPI server
+  - port: 8000
+    name: fastapi-backend
+    protocol: http
+    visibility: public
 
-# Environment variables (use secrets in production)
+# Environment variables
+# NOTE: For Daytona SDK, set these in your .env file:
+# DAYTONA_API_KEY=your-api-key (from https://app.daytona.io/dashboard/keys)
+# DAYTONA_API_URL=https://app.daytona.io/api (default)
+# DAYTONA_TARGET=us (optional)
 environment:
-  # Note: Set these in Daytona dashboard as secrets
+  # Application environment variables
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
   ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY}
   GEMINI_API_KEY: ${GEMINI_API_KEY}
@@ -26,50 +38,23 @@ environment:
   TIGRIS_SECRET_KEY: ${TIGRIS_SECRET_KEY}
   GALILEO_API_KEY: ${GALILEO_API_KEY}
   BREX_API_KEY: ${BREX_API_KEY}
+  WEATHER_API_KEY: ${WEATHER_API_KEY}
 
-  # Application config
-  ENVIRONMENT: production
-  BACKEND_URL: ${DAYTONA_WORKSPACE_URL}
-
-  # Python
+  ENVIRONMENT: "production"
   PYTHONUNBUFFERED: "1"
   PYTHONDONTWRITEBYTECODE: "1"
 
-# Startup commands
+# Lifecycle commands (for non-SDK deployment)
 commands:
-  # Install dependencies
-  setup: |
+  install: |
     cd backend-api
-    pip install --upgrade pip
     pip install -r requirements.txt
-    echo "✅ Dependencies installed"
 
-  # Start the FastAPI server
   start: |
     cd backend-api
-    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    uvicorn app.main:app --host 0.0.0.0 --port 8000
 
-  # Run in production mode (no reload)
-  start-prod: |
-    cd backend-api
-    uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
-
-  # Test the API
-  test: |
-    cd backend-api
-    curl http://localhost:8000/health
-
-  # View logs
-  logs: |
-    tail -f /var/log/uvicorn.log
-
-# Volume mounts (optional)
-volumes:
-  - type: bind
-    source: ./backend-api
-    target: /workspace/backend-api
-
-# Resources
+# Resource allocation
 resources:
   cpu: "2"
   memory: "4Gi"

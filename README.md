@@ -294,54 +294,92 @@ private let baseURL = "https://your-daytona-url.daytona.app"
 
 ---
 
-## 🏃 Daytona Deployment
+## 🏃 Daytona SDK Deployment
 
-### 1. Install Daytona CLI
+> **Daytona** is an SDK for creating programmatic development sandboxes with automatic preview URLs.
+>
+> **Documentation**: https://www.daytona.io/docs/
 
-```bash
-curl -sf https://download.daytona.io/daytona/install.sh | sh
-```
+### ⚡ Quick Start (5 Minutes)
 
-### 2. Login to Daytona
+#### Step 1: Get Daytona API Key
 
-```bash
-daytona login
-```
+1. Visit [Daytona Dashboard](https://app.daytona.io/dashboard/)
+2. Go to [API Keys](https://app.daytona.io/dashboard/keys)
+3. Click "Create Key" → Select scopes → Copy key
 
-### 3. Create Workspace
-
-```bash
-daytona create --name closet-scanner-backend \
-  --from-git https://github.com/your-username/closet-scanner
-```
-
-### 4. Set Environment Variables
-
-In the Daytona dashboard, add your API keys as secrets.
-
-### 5. Start the Backend
-
-```bash
-daytona code closet-scanner-backend
-```
-
-Inside the Daytona workspace:
+#### Step 2: Install SDK & Configure
 
 ```bash
 cd backend-api
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# Install Daytona SDK
+pip install daytona
+
+# Add to .env file
+echo "DAYTONA_API_KEY=your-daytona-key-here" >> .env
 ```
 
-### 6. Get Public URL
+#### Step 3: Deploy
 
 ```bash
-daytona url closet-scanner-backend
+# Run deployment script
+python daytona_deploy.py
 ```
 
-This will return your public URL: `https://closet-scanner-backend-xxx.daytona.app`
+**The script will:**
+1. ✅ Build custom Python 3.11 sandbox
+2. 📦 Install all dependencies automatically
+3. 📁 Upload backend code
+4. 🚀 Start FastAPI server
+5. 🌐 Provide preview URL
 
-Update the iOS app's `APIClient.swift` with this URL.
+#### Step 4: Get Your URL
+
+```
+============================================================
+  ✅ Deployment Successful!
+============================================================
+
+📡 Backend API:     https://preview-abc123.daytona.app
+📚 API Docs:        https://preview-abc123.daytona.app/docs
+📊 Dashboard:       https://preview-abc123.daytona.app/dashboard
+
+🔧 Sandbox ID:      abc123
+============================================================
+```
+
+#### Step 5: Update iOS App
+
+```swift
+// In ClosetAI/Services/APIClient.swift
+private let baseURL = "https://preview-abc123.daytona.app"
+```
+
+### 📖 Complete Guide
+
+For detailed instructions, troubleshooting, and SDK usage, see:
+**[DAYTONA_SETUP.md](./DAYTONA_SETUP.md)** - Complete Daytona SDK guide
+
+### 🔧 Managing Sandboxes
+
+```bash
+# Delete sandbox when done
+python daytona_cleanup.py
+
+# Or specify sandbox ID
+python daytona_cleanup.py abc123
+```
+
+### 🎯 What You Get
+
+✅ Programmatic sandbox creation
+✅ Custom Python 3.11 image with dependencies
+✅ Automatic HTTPS preview URLs
+✅ File upload/download capabilities
+✅ Process execution and monitoring
+✅ SDK-based management (Python/TypeScript)
+✅ Cleanup scripts included
 
 ---
 

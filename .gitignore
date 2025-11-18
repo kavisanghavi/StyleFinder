@@ -166,6 +166,7 @@ coverage.xml
 # ==================== Cloud & Deployment ====================
 .daytona/workspace_state.json
 .daytona/logs/
+.daytona_sandbox_id
 
 # ==================== User Data (Privacy) ====================
 # Never commit user data or encrypted backups
