@@ -175,30 +175,39 @@ Requirements:
 
 CRITICAL REQUIREMENTS - FOLLOW EXACTLY:
 
+PRESERVE EXACT APPEARANCE:
+- Keep the clothing EXACTLY as it appears in the original photo
+- DO NOT rearrange sleeves, collars, or any parts
+- DO NOT "idealize" or style the clothing
+- Preserve the exact fold, drape, and position of all elements
+- If sleeves are spread out, keep them spread out
+- If fabric has wrinkles or folds, keep them
+- The item should look IDENTICAL to the original, just without background
+
 ORIENTATION:
-- Make the clothing item PERFECTLY UPRIGHT and VERTICAL (as if someone is wearing it while standing)
-- The collar/neckline should be at the TOP, bottom hem at BOTTOM
-- If the photo is tilted or sideways, straighten the item to be perfectly vertical
+- Make the item PERFECTLY UPRIGHT and VERTICAL
+- The collar/neckline at TOP, bottom hem at BOTTOM
+- If the photo is tilted, straighten it to vertical
 - NO rotation, NO tilting, PERFECTLY upright
 
 BACKGROUND:
-- Use ONLY a pure white background (#FFFFFF) or transparent
+- Use ONLY pure white background (#FFFFFF) or transparent
 - DO NOT add frames, borders, shadows, or decorative elements
-- DO NOT add rectangular frames or boxes around the item
 - CLEAN simple background ONLY
 
-COLORS & QUALITY:
-- PRESERVE EXACT ORIGINAL COLORS - do not change, enhance, or adjust
+COLORS & DETAILS:
+- PRESERVE EXACT ORIGINAL COLORS - no changes, no enhancements
 - DO NOT change lighting, saturation, brightness, or hue
-- Keep exact fabric texture, patterns, and details
+- Keep exact fabric texture, patterns, stitching, and all details
 - Maintain original quality and resolution
+- Keep all wrinkles, creases, and fabric characteristics
 
 OUTPUT:
-- ONLY the clothing item on plain white background
+- ONLY the clothing item exactly as photographed on plain white background
 - Portrait orientation (vertical/tall)
 - Center the item
 - Clean edges, no artifacts
-- NO artistic additions, NO frames, NO borders"""
+- NO artistic additions, NO styling changes"""
 
             # Generate with new Gemini API
             response = self.client.models.generate_content(
