@@ -350,45 +350,76 @@ class APIClient {
         clothingItems: [UIImage],
         styleGuidance: String? = nil
     ) async throws -> UIImage {
-        let url = URL(string: "\(baseURL)/virtual-tryon")!
+        let url = URL(string: "\(baseURL)/virtual-tryon-outfit")!
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        // Convert images to base64
-        guard let userImageData = userImage.jpegData(compressionQuality: 0.8) else {
+        // Create multipart form data
+        let boundary = UUID().uuidString
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+
+        // Add user_id
+        let userId = getUserId()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"user_id\"\r\n\r\n".data(using: .utf8)!)
+        body.append(userId.data(using: .utf8)!)
+        body.append("\r\n".data(using: .utf8)!)
+
+        // Add model image
+        guard let modelImageData = userImage.jpegData(compressionQuality: 0.8) else {
             throw APIError.imageConversionFailed
         }
-        let userBase64 = userImageData.base64EncodedString()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"model_image\"; filename=\"model.jpg\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+        body.append(modelImageData)
+        body.append("\r\n".data(using: .utf8)!)
 
-        let clothingBase64 = try clothingItems.map { image -> String in
-            guard let data = image.jpegData(compressionQuality: 0.8) else {
+        // Add clothing images
+        for (index, clothingImage) in clothingItems.enumerated() {
+            guard let clothingImageData = clothingImage.jpegData(compressionQuality: 0.8) else {
                 throw APIError.imageConversionFailed
             }
-            return data.base64EncodedString()
+
+            let fieldName = "clothing_image_\(index + 1)"
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"\(fieldName)\"; filename=\"clothing\(index + 1).jpg\"\r\n".data(using: .utf8)!)
+            body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+            body.append(clothingImageData)
+            body.append("\r\n".data(using: .utf8)!)
         }
 
-        // Prepare request body
-        let requestBody = VirtualTryOnRequest(
-            user_image_base64: userBase64,
-            clothing_items_base64: clothingBase64,
-            style_guidance: styleGuidance
-        )
+        // Close boundary
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
 
-        request.httpBody = try JSONEncoder().encode(requestBody)
+        request.httpBody = body
 
-        print("📤 Generating virtual try-on...")
+        print("📤 Generating virtual try-on with \(clothingItems.count) clothing items...")
 
         let (data, response) = try await session.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200,
-              let resultImage = UIImage(data: data) else {
+        guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
         }
 
-        print("✅ Virtual try-on generated")
+        print("📥 Received response: \(httpResponse.statusCode)")
+
+        guard httpResponse.statusCode == 200 else {
+            if let errorMessage = String(data: data, encoding: .utf8) {
+                print("❌ Error response: \(errorMessage)")
+            }
+            throw APIError.serverError(statusCode: httpResponse.statusCode)
+        }
+
+        guard let resultImage = UIImage(data: data) else {
+            print("❌ Failed to decode result image")
+            throw APIError.invalidResponse
+        }
+
+        print("✅ Virtual try-on generated successfully")
 
         return resultImage
     }
