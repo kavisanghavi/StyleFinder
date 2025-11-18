@@ -30,8 +30,8 @@ class EncryptionService {
     // MARK: - Initialization
 
     private init() {
-        // Ensure encryption key exists
-        _ = getOrCreateEncryptionKey()
+        // Ensure encryption key exists on first use
+        // Key will be created lazily when first encryption/decryption is attempted
     }
 
     // MARK: - Public Methods
