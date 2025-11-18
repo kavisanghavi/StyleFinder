@@ -32,6 +32,7 @@ from app.services.tigris_service import tigris_service
 from app.services.brex_service import brex_service
 from app.services.weather_service import weather_service
 from app.services.background_removal_service import background_removal_service
+from app.services.rembg_service import rembg_service
 from app.monitoring.galileo_observer import galileo_observer
 from app.config import settings
 
@@ -155,7 +156,8 @@ async def health_check():
             "nanobanana": {"enabled": nanobanana_service.enabled},
             "tigris": {"enabled": tigris_service.enabled},
             "weather": {"enabled": weather_service.enabled},
-            "galileo": {"enabled": galileo_observer.galileo_enabled}
+            "galileo": {"enabled": galileo_observer.galileo_enabled},
+            "rembg": {"enabled": rembg_service.enabled, "type": "local-ai"}
         }
     }
 
@@ -379,6 +381,147 @@ async def virtual_tryon(request: VirtualTryOnRequest):
 
     except Exception as e:
         logger.error(f"❌ Virtual try-on error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== Background Removal (Rembg) ====================
+
+@app.post(
+    "/remove-background",
+    tags=["Image Processing"],
+    summary="Remove background from clothing image (rembg)",
+    description="Remove background from clothing photos using local AI (rembg package). Fast, free, and works offline!"
+)
+async def remove_background(
+    file: UploadFile = File(...),
+    format: str = Form("png"),
+    alpha_matting: bool = Form(False),
+    model: str = Form("u2net")
+):
+    """
+    Remove background from clothing image using rembg package.
+
+    This endpoint uses the rembg Python package with U²-Net model for high-quality
+    background removal. Perfect for phone photos of clothes!
+
+    **Benefits:**
+    - 🚀 Fast (1-3 seconds)
+    - 💰 FREE (no API costs)
+    - 📴 Works offline
+    - 👔 Great for clothing
+
+    **Available Models:**
+    - `u2net`: Default, best for general use (recommended for clothing)
+    - `u2netp`: Faster, smaller model (less accurate)
+    - `u2net_human_seg`: Optimized for people/fashion photography
+    - `u2net_cloth_seg`: Optimized specifically for clothing segmentation
+
+    Args:
+        file: Image file (JPEG, PNG, etc.)
+        format: Output format (png, jpg) - PNG recommended for transparency
+        alpha_matting: Enable better edge detection (slower but higher quality)
+        model: Model to use for background removal
+
+    Returns:
+        StreamingResponse: Image with background removed (transparent PNG or white background JPG)
+
+    Raises:
+        HTTPException: If background removal fails
+    """
+    try:
+        logger.info(f"🎨 Removing background from: {file.filename}")
+
+        # Read image
+        image_data = await file.read()
+
+        # Remove background based on model choice
+        if model == "u2net":
+            # Standard removal with optional alpha matting
+            result_image = await rembg_service.remove_background(
+                image_data=image_data,
+                format=format,
+                alpha_matting=alpha_matting
+            )
+        else:
+            # Advanced removal with specific model
+            result_image = await rembg_service.remove_background_advanced(
+                image_data=image_data,
+                model_name=model,
+                post_process_mask=alpha_matting
+            )
+
+        # Return as streaming response
+        image_io = io.BytesIO(result_image)
+        media_type = f"image/{format}"
+
+        return StreamingResponse(
+            image_io,
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f"inline; filename=no_bg.{format}",
+                "X-Processing-Method": "rembg-local",
+                "X-Model-Used": model
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Background removal error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
+    "/remove-background-batch",
+    tags=["Image Processing"],
+    summary="Batch remove backgrounds (rembg)",
+    description="Remove backgrounds from multiple clothing images at once."
+)
+async def remove_background_batch(
+    files: List[UploadFile] = File(...),
+    format: str = Form("png")
+):
+    """
+    Remove backgrounds from multiple images in batch.
+
+    Args:
+        files: List of image files
+        format: Output format for all images
+
+    Returns:
+        JSONResponse: List of base64-encoded images with backgrounds removed
+
+    Raises:
+        HTTPException: If batch processing fails
+    """
+    try:
+        logger.info(f"🎨 Batch removing backgrounds from {len(files)} images...")
+
+        # Read all images
+        images_data = []
+        for file in files:
+            image_data = await file.read()
+            images_data.append(image_data)
+
+        # Process batch
+        result_images = await rembg_service.remove_backgrounds_batch(
+            images=images_data,
+            format=format
+        )
+
+        # Encode to base64 for JSON response
+        encoded_results = []
+        for img_bytes in result_images:
+            encoded = base64.b64encode(img_bytes).decode('utf-8')
+            encoded_results.append(encoded)
+
+        return JSONResponse({
+            "count": len(encoded_results),
+            "format": format,
+            "images": encoded_results,
+            "processing_method": "rembg-local"
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Batch background removal error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
