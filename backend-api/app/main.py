@@ -22,6 +22,7 @@ from typing import List, Optional, Dict, Any
 import base64
 import io
 import logging
+import asyncio
 from pathlib import Path
 from PIL import Image, ExifTags, ImageOps
 
@@ -483,6 +484,222 @@ async def get_user_closet(user_id: str, db: Session = Depends(get_db)):
 
     except Exception as e:
         logger.error(f"❌ Failed to fetch closet: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== Bulk Image Processing ====================
+
+@app.post(
+    "/bulk-analyze",
+    tags=["Bulk Processing"],
+    summary="Bulk analyze multiple clothing images",
+    description="Upload multiple clothing images for async processing. Returns a job_id to track progress."
+)
+async def bulk_analyze_clothing(
+    files: List[UploadFile] = File(...),
+    user_id: str = Form(...),
+    remove_background: bool = Form(True)
+):
+    """
+    Bulk analyze multiple clothing images asynchronously.
+
+    This endpoint:
+    1. Uploads all images to Tigris cloud storage
+    2. Creates a processing job in Supabase
+    3. Returns job_id immediately for tracking
+    4. Processes images in background (async)
+
+    Args:
+        files: List of image files
+        user_id: User identifier
+        remove_background: Whether to remove background (default: True)
+
+    Returns:
+        Job ID and status URL for tracking progress
+
+    Example:
+        curl -X POST "http://localhost:8000/bulk-analyze" \\
+             -F "user_id=test-user-123" \\
+             -F "files=@shirt1.jpg" \\
+             -F "files=@pants1.jpg" \\
+             -F "remove_background=true"
+    """
+    try:
+        if not files:
+            raise HTTPException(status_code=400, detail="No files provided")
+
+        logger.info(f"📦 Starting bulk analysis: {len(files)} images for user {user_id}")
+
+        # Step 1: Create processing job
+        job = supabase_service.create_job(user_id, len(files))
+        if not job:
+            raise HTTPException(status_code=500, detail="Failed to create processing job")
+
+        job_id = job['id']
+
+        # Step 2: Upload all images to Tigris first (fast)
+        image_urls = []
+        for i, file in enumerate(files):
+            try:
+                image_data = await file.read()
+                content_type = file.content_type or "image/jpeg"
+
+                # Upload to Tigris
+                import time
+                timestamp = int(time.time())
+                filename = f"bulk-{timestamp}-{i}-{file.filename}"
+
+                if tigris_service.enabled:
+                    url = await tigris_service.upload_image(
+                        image_bytes=image_data,
+                        filename=filename,
+                        content_type=content_type,
+                        user_id=user_id
+                    )
+                    image_urls.append(url)
+                    logger.info(f"✅ Uploaded {i+1}/{len(files)}: {filename}")
+                else:
+                    logger.warning("⚠️  Tigris disabled, skipping upload")
+
+            except Exception as e:
+                logger.error(f"❌ Failed to upload image {i}: {e}")
+                # Continue with other images
+
+        # Step 3: Add images to job queue
+        if image_urls:
+            supabase_service.add_images_to_job(job_id, user_id, image_urls)
+
+        # Step 4: Start background processing
+        import asyncio
+        asyncio.create_task(process_bulk_job(job_id, user_id, remove_background))
+
+        logger.info(f"🚀 Bulk job {job_id} created with {len(image_urls)} images")
+
+        return {
+            "status": "processing",
+            "job_id": job_id,
+            "total_images": len(image_urls),
+            "status_url": f"/bulk-status/{job_id}",
+            "message": f"Processing {len(image_urls)} images. Check status at /bulk-status/{job_id}"
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Bulk analyze error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get(
+    "/bulk-status/{job_id}",
+    tags=["Bulk Processing"],
+    summary="Check bulk processing job status",
+    description="Get the status of a bulk processing job including progress and completed items."
+)
+async def get_bulk_status(job_id: str):
+    """
+    Get status of a bulk processing job.
+
+    Args:
+        job_id: Job identifier from /bulk-analyze
+
+    Returns:
+        Job status with progress information
+
+    Example:
+        GET /bulk-status/550e8400-e29b-41d4-a716-446655440000
+    """
+    try:
+        job = supabase_service.get_job_status(job_id)
+
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        return {
+            "job_id": job_id,
+            "status": job.get('status'),
+            "total_images": job.get('total_images'),
+            "processed_images": job.get('processed_images'),
+            "failed_images": job.get('failed_images'),
+            "progress_percent": round((job.get('processed_images', 0) / max(job.get('total_images', 1), 1)) * 100, 1),
+            "created_at": job.get('created_at'),
+            "completed_at": job.get('completed_at'),
+            "error_message": job.get('error_message')
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get job status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get(
+    "/bulk-results/{job_id}",
+    tags=["Bulk Processing"],
+    summary="Get bulk processing job results",
+    description="Get all analyzed items from a completed bulk processing job."
+)
+async def get_bulk_results(job_id: str):
+    """
+    Get results from a bulk processing job.
+
+    Args:
+        job_id: Job identifier
+
+    Returns:
+        List of analyzed clothing items
+
+    Example:
+        GET /bulk-results/550e8400-e29b-41d4-a716-446655440000
+    """
+    try:
+        # Get job status
+        job = supabase_service.get_job_status(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        # Get all job images with their results
+        if not supabase_service.enabled:
+            return {"items": []}
+
+        response = supabase_service.client.table('job_images')\
+            .select("*, clothing_items(*)")\
+            .eq("job_id", job_id)\
+            .execute()
+
+        images = response.data if response.data else []
+
+        # Format results
+        results = []
+        for img in images:
+            item_data = img.get('clothing_items')
+            if item_data:
+                results.append({
+                    "image_url": img.get('image_url'),
+                    "status": img.get('status'),
+                    "item": item_data,
+                    "processed_at": img.get('processed_at'),
+                    "error_message": img.get('error_message')
+                })
+            else:
+                results.append({
+                    "image_url": img.get('image_url'),
+                    "status": img.get('status'),
+                    "item": None,
+                    "processed_at": img.get('processed_at'),
+                    "error_message": img.get('error_message')
+                })
+
+        return {
+            "job_id": job_id,
+            "status": job.get('status'),
+            "total_items": len(results),
+            "items": results
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get job results: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1017,6 +1234,163 @@ async def demo_dashboard():
 </body>
 </html>
         """)
+
+
+# ==================== Background Processing Worker ====================
+
+async def process_bulk_job(job_id: str, user_id: str, remove_background: bool = True):
+    """
+    Background worker to process bulk image analysis job.
+
+    Processes images in parallel batches of 5 for optimal performance.
+
+    Args:
+        job_id: Processing job identifier
+        user_id: User identifier
+        remove_background: Whether to remove background from images
+    """
+    logger.info(f"🔄 Starting background processing for job {job_id}")
+
+    try:
+        # Process in batches of 5 images at a time
+        batch_size = 5
+        total_processed = 0
+
+        while True:
+            # Get next batch of pending images
+            pending_images = supabase_service.get_pending_job_images(job_id, limit=batch_size)
+
+            if not pending_images:
+                logger.info(f"✅ No more pending images for job {job_id}")
+                break
+
+            # Process batch in parallel
+            tasks = [
+                process_single_image(img, user_id, remove_background)
+                for img in pending_images
+            ]
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Update progress
+            total_processed += len(pending_images)
+            supabase_service.update_job_progress(job_id)
+
+            logger.info(f"📊 Processed batch: {total_processed} total for job {job_id}")
+
+        # Final progress update
+        supabase_service.update_job_progress(job_id)
+        logger.info(f"🎉 Completed job {job_id}")
+
+    except Exception as e:
+        logger.error(f"❌ Error processing job {job_id}: {e}")
+        # Mark job as failed
+        if supabase_service.enabled:
+            supabase_service.client.table('processing_jobs')\
+                .update({'status': 'failed', 'error_message': str(e)})\
+                .eq('id', job_id)\
+                .execute()
+
+
+async def process_single_image(job_image: dict, user_id: str, remove_background: bool = True):
+    """
+    Process a single image from a bulk job.
+
+    Args:
+        job_image: Job image record from Supabase
+        user_id: User identifier
+        remove_background: Whether to remove background
+
+    Returns:
+        Item ID if successful, None otherwise
+    """
+    image_id = job_image['id']
+    image_url = job_image['image_url']
+
+    try:
+        logger.info(f"🔍 Processing image {image_id}: {image_url}")
+
+        # Mark as processing
+        supabase_service.update_job_image_status(image_id, 'processing')
+
+        # Download image from Tigris
+        import httpx
+        async with httpx.AsyncClient() as client:
+            response = await client.get(image_url)
+            response.raise_for_status()
+            image_data = response.content
+
+        # Convert to base64
+        image_base64 = base64.b64encode(image_data).decode('utf-8')
+        content_type = response.headers.get('content-type', 'image/jpeg')
+
+        # Remove background if requested
+        extracted_image_url = None
+        extracted_image_data = None
+        analysis_image_base64 = image_base64
+
+        if remove_background and nanobanana_service.enabled:
+            try:
+                logger.info(f"✂️  Removing background for image {image_id}")
+                extracted_image_data = await nanobanana_service.remove_background(
+                    image_base64=image_base64,
+                    subject_description="clothing item"
+                )
+
+                if extracted_image_data and len(extracted_image_data) > 0:
+                    analysis_image_base64 = base64.b64encode(extracted_image_data).decode('utf-8')
+
+                    # Upload extracted image to Tigris
+                    if tigris_service.enabled:
+                        import time
+                        timestamp = int(time.time())
+                        extracted_filename = f"extracted-bulk-{timestamp}-{image_id}.png"
+                        extracted_image_url = await tigris_service.upload_image(
+                            image_bytes=extracted_image_data,
+                            filename=extracted_filename,
+                            content_type="image/png",
+                            user_id=user_id
+                        )
+
+            except Exception as e:
+                logger.warning(f"⚠️  Background removal failed for {image_id}: {e}")
+
+        # Analyze with Claude
+        logger.info(f"🤖 Analyzing image {image_id} with Claude")
+        analysis_content_type = "image/png" if extracted_image_data else content_type
+        analysis = await claude_service.analyze_clothing(analysis_image_base64, analysis_content_type)
+
+        # Save to Supabase
+        item_id = str(uuid.uuid4())
+        item_data = {
+            'id': item_id,
+            'user_id': user_id,
+            'original_image_url': image_url,
+            'extracted_image_url': extracted_image_url,
+            'type': analysis.get('type', ''),
+            'color': analysis.get('color', ''),
+            'pattern': analysis.get('pattern', ''),
+            'style': analysis.get('style', ''),
+            'confidence': analysis.get('confidence', 0.0),
+            'season': analysis.get('season', []),
+            'pairs_well_with': analysis.get('pairs_well_with', []),
+            'occasion': analysis.get('occasion'),
+            'material': analysis.get('material'),
+            'care_instructions': analysis.get('care_instructions')
+        }
+
+        supabase_service.save_item(item_data)
+
+        # Mark as completed
+        supabase_service.update_job_image_status(image_id, 'completed', item_id=item_id)
+
+        logger.info(f"✅ Completed processing image {image_id}")
+        return item_id
+
+    except Exception as e:
+        logger.error(f"❌ Failed to process image {image_id}: {e}")
+        supabase_service.update_job_image_status(image_id, 'failed', error_message=str(e))
+        return None
 
 
 # ==================== Startup Event ====================

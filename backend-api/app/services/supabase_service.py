@@ -90,6 +90,233 @@ class SupabaseService:
             logger.error(f"❌ Supabase fetch error: {e}")
             return []
 
+    # ==================== Bulk Processing Job Methods ====================
+
+    def create_job(self, user_id: str, total_images: int) -> dict:
+        """
+        Create a new bulk processing job.
+
+        Args:
+            user_id: User identifier
+            total_images: Total number of images to process
+
+        Returns:
+            Job data with job_id
+        """
+        if not self.enabled:
+            return {}
+
+        try:
+            job_data = {
+                'user_id': user_id,
+                'status': 'pending',
+                'total_images': total_images,
+                'processed_images': 0,
+                'failed_images': 0
+            }
+
+            response = self.client.table('processing_jobs').insert(job_data).execute()
+            job = response.data[0] if response.data else {}
+
+            logger.info(f"📋 Created job {job.get('id')} for {total_images} images")
+            return job
+
+        except Exception as e:
+            logger.error(f"❌ Failed to create job: {e}")
+            return {}
+
+    def add_images_to_job(self, job_id: str, user_id: str, image_urls: list) -> bool:
+        """
+        Add images to a processing job.
+
+        Args:
+            job_id: Job identifier
+            user_id: User identifier
+            image_urls: List of Tigris image URLs
+
+        Returns:
+            True if successful
+        """
+        if not self.enabled:
+            return False
+
+        try:
+            job_images = [
+                {
+                    'job_id': job_id,
+                    'user_id': user_id,
+                    'image_url': url,
+                    'status': 'pending'
+                }
+                for url in image_urls
+            ]
+
+            response = self.client.table('job_images').insert(job_images).execute()
+
+            logger.info(f"📸 Added {len(image_urls)} images to job {job_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Failed to add images to job: {e}")
+            return False
+
+    def get_job_status(self, job_id: str) -> dict:
+        """
+        Get the status of a processing job.
+
+        Args:
+            job_id: Job identifier
+
+        Returns:
+            Job data with status
+        """
+        if not self.enabled:
+            return {}
+
+        try:
+            response = self.client.table('processing_jobs')\
+                .select("*")\
+                .eq("id", job_id)\
+                .execute()
+
+            job = response.data[0] if response.data else {}
+            return job
+
+        except Exception as e:
+            logger.error(f"❌ Failed to get job status: {e}")
+            return {}
+
+    def get_pending_job_images(self, job_id: str, limit: int = 10) -> list:
+        """
+        Get pending images from a job for processing.
+
+        Args:
+            job_id: Job identifier
+            limit: Maximum number of images to fetch
+
+        Returns:
+            List of pending job images
+        """
+        if not self.enabled:
+            return []
+
+        try:
+            response = self.client.table('job_images')\
+                .select("*")\
+                .eq("job_id", job_id)\
+                .eq("status", "pending")\
+                .limit(limit)\
+                .execute()
+
+            images = response.data if response.data else []
+            return images
+
+        except Exception as e:
+            logger.error(f"❌ Failed to get pending images: {e}")
+            return []
+
+    def update_job_image_status(self, image_id: str, status: str, item_id: str = None, error_message: str = None) -> bool:
+        """
+        Update the status of a job image.
+
+        Args:
+            image_id: Job image identifier
+            status: New status (processing, completed, failed)
+            item_id: Optional clothing item ID if completed
+            error_message: Optional error message if failed
+
+        Returns:
+            True if successful
+        """
+        if not self.enabled:
+            return False
+
+        try:
+            update_data = {'status': status}
+
+            if item_id:
+                update_data['item_id'] = item_id
+            if error_message:
+                update_data['error_message'] = error_message
+            if status == 'completed' or status == 'failed':
+                import datetime
+                update_data['processed_at'] = datetime.datetime.utcnow().isoformat()
+
+            response = self.client.table('job_images')\
+                .update(update_data)\
+                .eq("id", image_id)\
+                .execute()
+
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Failed to update image status: {e}")
+            return False
+
+    def update_job_progress(self, job_id: str) -> bool:
+        """
+        Update job progress based on completed/failed images.
+
+        Args:
+            job_id: Job identifier
+
+        Returns:
+            True if successful
+        """
+        if not self.enabled:
+            return False
+
+        try:
+            # Get counts
+            completed_response = self.client.table('job_images')\
+                .select("id", count='exact')\
+                .eq("job_id", job_id)\
+                .eq("status", "completed")\
+                .execute()
+
+            failed_response = self.client.table('job_images')\
+                .select("id", count='exact')\
+                .eq("job_id", job_id)\
+                .eq("status", "failed")\
+                .execute()
+
+            processed_count = completed_response.count or 0
+            failed_count = failed_response.count or 0
+
+            # Get job total
+            job = self.get_job_status(job_id)
+            total = job.get('total_images', 0)
+
+            # Determine job status
+            if processed_count + failed_count >= total:
+                job_status = 'completed'
+                import datetime
+                completed_at = datetime.datetime.utcnow().isoformat()
+            else:
+                job_status = 'processing'
+                completed_at = None
+
+            # Update job
+            update_data = {
+                'processed_images': processed_count,
+                'failed_images': failed_count,
+                'status': job_status
+            }
+            if completed_at:
+                update_data['completed_at'] = completed_at
+
+            self.client.table('processing_jobs')\
+                .update(update_data)\
+                .eq("id", job_id)\
+                .execute()
+
+            logger.info(f"📊 Job {job_id}: {processed_count}/{total} completed, {failed_count} failed")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Failed to update job progress: {e}")
+            return False
+
 
 # Global instance
 supabase_service = SupabaseService()
