@@ -20,7 +20,7 @@ psycopg2-binary==2.9.11
 supabase==2.24.0
 
 # Monitoring
-galileo-observe==1.29.1
+galileo
 
 # Utilities
 httpx==0.28.1

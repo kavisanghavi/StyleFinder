@@ -11,8 +11,10 @@ struct ContentView: View {
     @StateObject private var wardrobeVM = WardrobeViewModel()
     @StateObject private var savedOutfitsManager = SavedOutfitsManager()
     @State private var selectedTab = 0
+    @State private var showingChat = false
 
     var body: some View {
+        ZStack {
         TabView(selection: $selectedTab) {
             WardrobeView()
                 .tabItem {
@@ -41,6 +43,49 @@ struct ContentView: View {
         .environmentObject(wardrobeVM)
         .environmentObject(savedOutfitsManager)
         .tint(Color(hex: "6366F1"))
+
+            // Floating Chat Button
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    Button(action: { showingChat = true }) {
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color(hex: "6366F1"), Color(hex: "8B5CF6")],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 60, height: 60)
+                                .shadow(color: Color(hex: "6366F1").opacity(0.4), radius: 16, x: 0, y: 8)
+
+                            Image(systemName: "bubble.left.and.bubble.right.fill")
+                                .font(.system(size: 24))
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 20)
+                }
+            }
+        }
+        .sheet(isPresented: $showingChat) {
+            NavigationStack {
+                FashionChatView()
+                    .environmentObject(wardrobeVM)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Done") {
+                                showingChat = false
+                            }
+                            .foregroundColor(Color(hex: "6366F1"))
+                        }
+                    }
+            }
+        }
     }
 }
 

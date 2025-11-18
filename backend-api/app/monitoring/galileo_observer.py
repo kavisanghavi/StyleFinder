@@ -45,31 +45,71 @@ class GalileoObserver:
         }
         self.call_history = []
 
+        # Lazy initialization flags
+        self._galileo_initialized = False
+        self.galileo_enabled = False
+        self.galileo_logger = None
+
+    def _ensure_initialized(self):
+        """Lazy initialization of Galileo - only initialize when first needed."""
+        if self._galileo_initialized:
+            return
+
+        self._galileo_initialized = True
+
         # Try to import and initialize Galileo
         try:
-            from galileo_observe import ObserveWorkflows
+            from galileo import galileo_context
+            from galileo.config import GalileoPythonConfig
             from app.config import settings
             import os
 
-            # Set environment variables for Galileo
+            # Set environment variables for Galileo (required before init)
             if settings.GALILEO_API_KEY:
                 os.environ["GALILEO_API_KEY"] = settings.GALILEO_API_KEY
+            else:
+                logger.warning("⚠️  GALILEO_API_KEY not set - Galileo observability disabled")
+                self.galileo_enabled = False
+                return
+
             if settings.GALILEO_CONSOLE_URL:
                 os.environ["GALILEO_CONSOLE_URL"] = settings.GALILEO_CONSOLE_URL
 
-            self.observer = ObserveWorkflows(
-                project_name=settings.GALILEO_PROJECT_NAME
+            # Initialize Galileo context
+            galileo_context.init(
+                project=settings.GALILEO_PROJECT_NAME,
+                log_stream="default"
             )
+
+            # Get the logger instance
+            self.galileo_logger = galileo_context.get_logger_instance()
+
+            # Start a session
+            self.galileo_logger.start_session()
+
             self.galileo_enabled = True
+
             logger.info(f"✅ Galileo observability enabled (project: {settings.GALILEO_PROJECT_NAME})")
+
+            # Try to get dashboard URL (non-critical)
+            try:
+                config = GalileoPythonConfig.get()
+                project_url = f"{config.console_url}project/{self.galileo_logger.project_id}"
+                logger.info(f"🔗 Galileo dashboard: {project_url}")
+            except Exception:
+                # Dashboard URL is optional - don't fail if we can't get it
+                logger.info(f"🔗 Galileo dashboard: https://console.galileo.ai/project/{self.galileo_logger.project_id}")
         except ImportError:
             logger.warning("⚠️  Galileo library not available - running without observability")
+            logger.warning("⚠️  Install with: pip install galileo")
             self.galileo_enabled = False
-            self.observer = None
+            self.galileo_logger = None
         except Exception as e:
             logger.warning(f"⚠️  Failed to initialize Galileo: {e}")
+            import traceback
+            logger.warning(traceback.format_exc())
             self.galileo_enabled = False
-            self.observer = None
+            self.galileo_logger = None
 
     def trace(self, name: str):
         """
@@ -91,14 +131,24 @@ class GalileoObserver:
             @wraps(func)
             async def async_wrapper(*args, **kwargs):
                 start_time = time.time()
+                start_time_ns = datetime.now().timestamp() * 1_000_000_000
 
-                # Start Galileo workflow if enabled
-                workflow = None
-                if self.galileo_enabled and self.observer:
+                # Ensure Galileo is initialized (lazy initialization)
+                self._ensure_initialized()
+
+                # Start Galileo trace if enabled
+                if self.galileo_enabled and self.galileo_logger:
                     try:
-                        workflow = self.observer.add_workflow(input={"operation": name})
+                        # Extract meaningful input if available
+                        trace_input = {"operation": name}
+                        if args:
+                            trace_input["args_count"] = len(args)
+                        if kwargs:
+                            trace_input["kwargs_keys"] = list(kwargs.keys())
+
+                        self.galileo_logger.start_trace(name=name, input=str(trace_input))
                     except Exception as e:
-                        logger.warning(f"Failed to start Galileo workflow: {e}")
+                        logger.warning(f"Failed to start Galileo trace: {e}")
 
                 try:
                     # Execute the actual function
@@ -106,17 +156,19 @@ class GalileoObserver:
 
                     # Calculate metrics
                     latency = time.time() - start_time
+                    duration_ns = (datetime.now().timestamp() * 1_000_000_000) - start_time_ns
 
                     # Log success to Galileo
-                    if workflow:
+                    if self.galileo_enabled and self.galileo_logger:
                         try:
-                            workflow.add_llm(
+                            self.galileo_logger.add_llm_span(
                                 input={"operation": name},
                                 output={"status": "success", "latency": latency},
-                                model=name
+                                model=name,
+                                duration_ns=int(duration_ns)
                             )
-                            workflow.conclude(output={"status": "success"})
-                            self.observer.upload_workflows()
+                            self.galileo_logger.conclude(output={"status": "success"})
+                            self.galileo_logger.flush()
                         except Exception as e:
                             logger.warning(f"Failed to log metrics to Galileo: {e}")
 
@@ -128,17 +180,19 @@ class GalileoObserver:
                 except Exception as e:
                     # Calculate latency even on error
                     latency = time.time() - start_time
+                    duration_ns = (datetime.now().timestamp() * 1_000_000_000) - start_time_ns
 
                     # Log error to Galileo
-                    if workflow:
+                    if self.galileo_enabled and self.galileo_logger:
                         try:
-                            workflow.add_llm(
+                            self.galileo_logger.add_llm_span(
                                 input={"operation": name},
                                 output={"status": "error", "error": str(e)},
-                                model=name
+                                model=name,
+                                duration_ns=int(duration_ns)
                             )
-                            workflow.conclude(output={"status": "error"})
-                            self.observer.upload_workflows()
+                            self.galileo_logger.conclude(output={"status": "error", "error": str(e)})
+                            self.galileo_logger.flush()
                         except Exception as log_error:
                             logger.warning(f"Failed to log error to Galileo: {log_error}")
 
@@ -152,27 +206,39 @@ class GalileoObserver:
             def sync_wrapper(*args, **kwargs):
                 """Synchronous wrapper for non-async functions."""
                 start_time = time.time()
+                start_time_ns = datetime.now().timestamp() * 1_000_000_000
 
-                workflow = None
-                if self.galileo_enabled and self.observer:
+                # Ensure Galileo is initialized (lazy initialization)
+                self._ensure_initialized()
+
+                # Start Galileo trace if enabled
+                if self.galileo_enabled and self.galileo_logger:
                     try:
-                        workflow = self.observer.add_workflow(input={"operation": name})
+                        trace_input = {"operation": name}
+                        if args:
+                            trace_input["args_count"] = len(args)
+                        if kwargs:
+                            trace_input["kwargs_keys"] = list(kwargs.keys())
+
+                        self.galileo_logger.start_trace(name=name, input=str(trace_input))
                     except Exception as e:
-                        logger.warning(f"Failed to start Galileo workflow: {e}")
+                        logger.warning(f"Failed to start Galileo trace: {e}")
 
                 try:
                     result = func(*args, **kwargs)
                     latency = time.time() - start_time
+                    duration_ns = (datetime.now().timestamp() * 1_000_000_000) - start_time_ns
 
-                    if workflow:
+                    if self.galileo_enabled and self.galileo_logger:
                         try:
-                            workflow.add_llm(
+                            self.galileo_logger.add_llm_span(
                                 input={"operation": name},
                                 output={"status": "success", "latency": latency},
-                                model=name
+                                model=name,
+                                duration_ns=int(duration_ns)
                             )
-                            workflow.conclude(output={"status": "success"})
-                            self.observer.upload_workflows()
+                            self.galileo_logger.conclude(output={"status": "success"})
+                            self.galileo_logger.flush()
                         except Exception as e:
                             logger.warning(f"Failed to log metrics: {e}")
 
@@ -181,16 +247,18 @@ class GalileoObserver:
 
                 except Exception as e:
                     latency = time.time() - start_time
+                    duration_ns = (datetime.now().timestamp() * 1_000_000_000) - start_time_ns
 
-                    if workflow:
+                    if self.galileo_enabled and self.galileo_logger:
                         try:
-                            workflow.add_llm(
+                            self.galileo_logger.add_llm_span(
                                 input={"operation": name},
                                 output={"status": "error", "error": str(e)},
-                                model=name
+                                model=name,
+                                duration_ns=int(duration_ns)
                             )
-                            workflow.conclude(output={"status": "error"})
-                            self.observer.upload_workflows()
+                            self.galileo_logger.conclude(output={"status": "error", "error": str(e)})
+                            self.galileo_logger.flush()
                         except Exception:
                             pass
 
