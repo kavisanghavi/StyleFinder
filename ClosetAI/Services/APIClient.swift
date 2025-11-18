@@ -104,16 +104,22 @@ class APIClient {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        // Prepare request body
-        let requestBody = OutfitRequest(
-            wardrobe_items: wardrobeItems.map { $0.toDictionary() },
-            occasion: occasion,
-            weather: weather?.toDictionary(),
-            preferences: nil,
-            color_preference: colorPreference
-        )
+        // Build request dictionary
+        var requestDict: [String: Any] = [
+            "wardrobe_items": wardrobeItems.map { $0.toDictionary() },
+            "occasion": occasion
+        ]
 
-        request.httpBody = try JSONEncoder().encode(requestBody)
+        if let weather = weather {
+            requestDict["weather"] = weather.toDictionary()
+        }
+
+        if let colorPreference = colorPreference {
+            requestDict["color_preference"] = colorPreference
+        }
+
+        // Convert to JSON
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestDict)
 
         print("📤 Generating outfit for occasion: \(occasion)")
 
@@ -240,29 +246,6 @@ class APIClient {
 }
 
 // MARK: - Request Models
-
-struct OutfitRequest: Codable {
-    let wardrobe_items: [[String: Any]]
-    let occasion: String
-    let weather: [String: Any]?
-    let preferences: [String: Any]?
-    let color_preference: String?
-
-    enum CodingKeys: String, CodingKey {
-        case wardrobe_items, occasion, weather, preferences, color_preference
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(occasion, forKey: .occasion)
-        try container.encodeIfPresent(color_preference, forKey: .color_preference)
-
-        // Encode dictionaries as JSON
-        let wardrobeData = try JSONSerialization.data(withJSONObject: wardrobe_items)
-        let wardrobeString = String(data: wardrobeData, encoding: .utf8)!
-        try container.encode(wardrobeString, forKey: .wardrobe_items)
-    }
-}
 
 struct VirtualTryOnRequest: Codable {
     let user_image_base64: String
