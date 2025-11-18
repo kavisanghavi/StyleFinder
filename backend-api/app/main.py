@@ -862,10 +862,32 @@ async def virtual_tryon_outfit(
 
         # Get positive statement from Claude about the try-on
         positive_statement = ""
+        audio_url = None
         try:
             logger.info("💬 Getting positive statement from Claude...")
             positive_statement = await claude_service.generate_tryon_compliment(result_base64)
             logger.info(f"✅ Claude statement: {positive_statement}")
+
+            # Generate audio with ElevenLabs
+            if elevenlabs_service.enabled and positive_statement:
+                try:
+                    logger.info("🔊 Generating audio with ElevenLabs...")
+                    audio_data = await elevenlabs_service.text_to_speech(positive_statement)
+
+                    # Upload audio to Tigris
+                    if tigris_service.enabled:
+                        import time
+                        timestamp = int(time.time())
+                        audio_filename = f"tryon-audio-{timestamp}.mp3"
+                        audio_url = await tigris_service.upload_image(
+                            image_bytes=audio_data,
+                            filename=audio_filename,
+                            content_type="audio/mpeg",
+                            user_id=user_id
+                        )
+                        logger.info(f"✅ Audio uploaded: {audio_url}")
+                except Exception as e:
+                    logger.warning(f"⚠️  Failed to generate audio: {e}")
         except Exception as e:
             logger.warning(f"⚠️  Failed to generate statement: {e}")
             positive_statement = "You look amazing in this outfit! It really suits your style."
@@ -876,6 +898,7 @@ async def virtual_tryon_outfit(
             "try_on_image_url": try_on_url,
             "try_on_image_base64": result_base64,
             "positive_statement": positive_statement,
+            "audio_url": audio_url,
             "timestamp": tigris_service.get_timestamp()
         }
 

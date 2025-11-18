@@ -244,7 +244,7 @@ struct VirtualTryOnView: View {
 
         Task {
             do {
-                let (image, statement) = try await APIClient.shared.virtualTryOn(
+                let (image, statement, audioUrl) = try await APIClient.shared.virtualTryOn(
                     userImage: userImg,
                     clothingItems: outfitImages,
                     styleGuidance: selectedOutfit?.stylingTips
@@ -258,24 +258,20 @@ struct VirtualTryOnView: View {
                     }
                 }
 
-                // Play positive statement with ElevenLabs
-                if let statement = statement, !statement.isEmpty {
-                    print("💬 Received positive statement: \(statement)")
+                // Download and play audio from URL
+                if let audioUrlString = audioUrl, let url = URL(string: audioUrlString) {
+                    print("🔊 Downloading audio from: \(audioUrlString)")
                     do {
-                        print("🔊 Calling ElevenLabs TTS...")
-                        let audioData = try await APIClient.shared.textToSpeech(
-                            text: statement,
-                            apiKey: elevenLabsApiKey
-                        )
-                        print("✅ Audio received, playing...")
+                        let (audioData, _) = try await URLSession.shared.data(from: url)
+                        print("✅ Audio downloaded (\(audioData.count) bytes), playing...")
                         await MainActor.run {
                             playAudio(data: audioData)
                         }
                     } catch {
-                        print("❌ Failed to generate speech: \(error)")
+                        print("❌ Failed to download/play audio: \(error)")
                     }
                 } else {
-                    print("⚠️  No positive statement received from backend")
+                    print("⚠️  No audio URL received from backend")
                 }
             } catch {
                 await MainActor.run {

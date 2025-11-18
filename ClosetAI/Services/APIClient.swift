@@ -344,12 +344,12 @@ class APIClient {
         return try decoder.decode(OutfitSuggestion.self, from: data)
     }
 
-    /// Generate virtual try-on image with positive statement
+    /// Generate virtual try-on image with positive statement and audio
     func virtualTryOn(
         userImage: UIImage,
         clothingItems: [UIImage],
         styleGuidance: String? = nil
-    ) async throws -> (image: UIImage, statement: String?) {
+    ) async throws -> (image: UIImage, statement: String?, audioUrl: String?) {
         let url = URL(string: "\(baseURL)/virtual-tryon-outfit")!
 
         var request = URLRequest(url: url)
@@ -419,13 +419,17 @@ class APIClient {
             let jsonResponse = try JSONDecoder().decode(VirtualTryOnResponse.self, from: data)
 
             let positiveStatement = jsonResponse.positive_statement
+            let audioUrl = jsonResponse.audio_url
+
+            print("📝 Statement: \(positiveStatement ?? "none")")
+            print("🔊 Audio URL: \(audioUrl ?? "none")")
 
             // Try to get image from base64 first
             if let base64String = jsonResponse.try_on_image_base64,
                let imageData = Data(base64Encoded: base64String),
                let resultImage = UIImage(data: imageData) {
                 print("✅ Virtual try-on generated successfully from base64")
-                return (image: resultImage, statement: positiveStatement)
+                return (image: resultImage, statement: positiveStatement, audioUrl: audioUrl)
             }
 
             // Fallback to downloading from URL if available
@@ -437,7 +441,7 @@ class APIClient {
                     throw APIError.invalidResponse
                 }
                 print("✅ Virtual try-on downloaded successfully")
-                return (image: resultImage, statement: positiveStatement)
+                return (image: resultImage, statement: positiveStatement, audioUrl: audioUrl)
             }
 
             throw APIError.invalidResponse
@@ -534,7 +538,7 @@ class APIClient {
     }
 
     /// Generate speech from text using ElevenLabs
-    func textToSpeech(text: String, apiKey: String, voiceId: String = "agent_5501kac4v66tfb59z11sgcye49nz") async throws -> Data {
+    func textToSpeech(text: String, apiKey: String, voiceId: String = "pNInz6obpgDQGcFmaJgB") async throws -> Data {
         let url = URL(string: "https://api.elevenlabs.io/v1/text-to-speech/\(voiceId)")!
 
         var request = URLRequest(url: url)
@@ -544,22 +548,34 @@ class APIClient {
 
         let requestBody: [String: Any] = [
             "text": text,
-            "model_id": "eleven_monolingual_v1",
+            "model_id": "eleven_turbo_v2_5",
             "voice_settings": [
                 "stability": 0.5,
-                "similarity_boost": 0.75
+                "similarity_boost": 0.75,
+                "style": 0.0,
+                "use_speaker_boost": true
             ]
         ]
 
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
 
         print("🔊 Generating speech with ElevenLabs...")
+        print("📤 URL: \(url)")
+        print("📝 Text: \(text)")
 
         let (data, response) = try await session.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
+        }
+
+        print("📥 ElevenLabs response status: \(httpResponse.statusCode)")
+
+        guard httpResponse.statusCode == 200 else {
+            if let errorMessage = String(data: data, encoding: .utf8) {
+                print("❌ ElevenLabs error response: \(errorMessage)")
+            }
+            throw APIError.serverError(statusCode: httpResponse.statusCode)
         }
 
         print("✅ Speech generated (\(data.count) bytes)")
@@ -581,6 +597,7 @@ struct VirtualTryOnResponse: Codable {
     let try_on_image_url: String?
     let try_on_image_base64: String?
     let positive_statement: String?
+    let audio_url: String?
     let timestamp: String
 }
 
