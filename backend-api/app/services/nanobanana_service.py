@@ -480,6 +480,108 @@ Return a clean PNG image of JUST the {item_color} {item_type} with no background
         logger.info(f"✅ Extracted {len(extracted_images)} items")
         return extracted_images
 
+    @trace(name="nanobanana_outfit_tryon")
+    async def generate_outfit_tryon(
+        self,
+        model_image: str,  # base64
+        clothing_images: List[str]  # list of base64 images
+    ) -> bytes:
+        """
+        Generate a virtual try-on image showing a model wearing an outfit.
+
+        This method creates a photorealistic image of the model wearing the clothing
+        items from the provided images.
+
+        Args:
+            model_image: Base64-encoded model/person photo
+            clothing_images: List of base64-encoded clothing item images
+
+        Returns:
+            Generated image as bytes (PNG format)
+
+        Raises:
+            Exception: If service is not available or generation fails
+        """
+        if not self.enabled:
+            raise Exception("Nano Banana service is not available")
+
+        logger.info(f"👔 Generating outfit try-on with {len(clothing_images)} clothing items...")
+
+        try:
+            # Decode base64 images
+            model_img_data = base64.b64decode(model_image)
+            clothing_imgs = [base64.b64decode(item) for item in clothing_images]
+
+            # Convert to PIL Images
+            model_pil = Image.open(io.BytesIO(model_img_data))
+            clothing_pils = [Image.open(io.BytesIO(img)) for img in clothing_imgs]
+
+            # Build the prompt for virtual try-on
+            prompt = """Create a photorealistic image of the person in the first image WEARING the clothing items from the additional images.
+
+CRITICAL REQUIREMENTS:
+1. The person MUST BE WEARING the clothing items on their body - not floating or separate
+2. Composite the clothing ONTO the person's body naturally
+3. The clothing should replace what they're currently wearing
+4. Ensure proper fit and draping as if the person is actually wearing these clothes
+5. Maintain realistic shadows, lighting, and fabric folds on the person's body
+6. Preserve the person's:
+   - Exact face and facial features
+   - Body shape and proportions
+   - Pose and position
+   - Background scene
+7. Match the lighting between the clothing and person perfectly
+8. Make it look like a natural photograph where the person is genuinely wearing these clothes
+
+DO NOT:
+- Place clothing items separately in the scene
+- Overlay clothes on the background
+- Create a collage or side-by-side view
+
+OUTPUT: A single photorealistic image of the person wearing all the clothing items naturally."""
+
+            logger.info("🤖 Calling Gemini API for outfit try-on generation...")
+
+            # Prepare content for Gemini - use the new API format
+            # Model image first, then clothing images
+            content_parts = [prompt, model_pil]
+            content_parts.extend(clothing_pils)
+
+            # Generate the image using new Gemini API
+            response = self.client.models.generate_content(
+                model=self.image_model,
+                contents=content_parts
+            )
+
+            # Extract generated image from response
+            for part in response.parts:
+                if part.text is not None:
+                    logger.info(f"📝 Gemini text response: {part.text[:100]}...")
+                elif part.inline_data is not None:
+                    # Get the image data directly from inline_data
+                    image_data = part.inline_data.data
+
+                    # Convert to PNG format
+                    try:
+                        pil_image = Image.open(io.BytesIO(image_data))
+                        output_buffer = io.BytesIO()
+                        pil_image.save(output_buffer, format='PNG')
+                        result_data = output_buffer.getvalue()
+                    except:
+                        # If conversion fails, use raw data
+                        result_data = image_data
+
+                    logger.info(f"✅ Outfit try-on generated ({len(result_data)} bytes)")
+                    return result_data
+
+            # If no image was found in response
+            logger.warning("⚠️  No image in Gemini response")
+            raise Exception("No image generated in response")
+
+        except Exception as e:
+            logger.error(f"❌ Outfit try-on generation error: {e}")
+            raise
+
 
 # Global instance
 nanobanana_service = NanoBananaService()
