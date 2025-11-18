@@ -85,8 +85,8 @@ def create_sandbox():
             "google-generativeai==0.3.1",
             "boto3==1.29.7",
             "python-dotenv==1.0.0",
-            "galileo-observe>=1.29.0",  # Updated to valid version
-            "httpx==0.25.1",
+            # galileo-observe removed due to httpx dependency conflict
+            "httpx>=0.23.0",  # Compatible with anthropic
             "pillow==10.1.0",
             "python-jose[cryptography]==3.3.0",
             "starlette==0.27.0"
