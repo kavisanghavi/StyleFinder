@@ -66,7 +66,13 @@ def main():
     # 4. Create .env file with credentials
     print("🔧 Setting up environment variables...")
 
-    env_content = f"""
+    # Create .env file using shell commands
+    env_file_path = "/workspace/StyleFinder/backend-api/.env"
+
+    try:
+        # Write .env file using echo command
+        sandbox.process.exec(
+            command=f"""cat > {env_file_path} << 'EOL'
 ANTHROPIC_API_KEY={ANTHROPIC_API_KEY}
 GEMINI_API_KEY={GEMINI_API_KEY}
 SUPABASE_URL={SUPABASE_URL}
@@ -75,14 +81,13 @@ TIGRIS_ACCESS_KEY={TIGRIS_ACCESS_KEY}
 TIGRIS_SECRET_KEY={TIGRIS_SECRET_KEY}
 TIGRIS_ENDPOINT=https://fly.storage.tigris.dev
 TIGRIS_BUCKET=closet-scanner
-""".strip()
-
-    sandbox.filesystem.write(
-        path="/workspace/StyleFinder/backend-api/.env",
-        content=env_content
-    )
-
-    print("✅ Environment configured\n")
+EOL"""
+        )
+        print("✅ Environment configured\n")
+    except Exception as e:
+        print(f"❌ Failed to create .env file: {e}")
+        sandbox.delete()
+        return
 
     # 5. Install dependencies
     print("📦 Installing dependencies (this may take 2-3 minutes)...")
