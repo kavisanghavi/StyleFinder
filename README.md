@@ -294,91 +294,92 @@ private let baseURL = "https://your-daytona-url.daytona.app"
 
 ---
 
-## 🏃 Daytona Deployment
+## 🏃 Daytona SDK Deployment
 
-> **Daytona** provides instant, fully-configured development environments with one command.
+> **Daytona** is an SDK for creating programmatic development sandboxes with automatic preview URLs.
 >
-> **API Endpoint**: `https://app.daytona.io/api`
+> **Documentation**: https://www.daytona.io/docs/
 
-### ⚡ Quick Start (2 Minutes)
+### ⚡ Quick Start (5 Minutes)
 
-#### Method 1: Daytona Web Dashboard (Recommended)
+#### Step 1: Get Daytona API Key
 
-1. **Visit** [https://app.daytona.io/](https://app.daytona.io/) and sign in with GitHub
-2. **Click** "New Workspace" → Enter repository URL
-3. **Add Secrets** in Settings → Secrets (ANTHROPIC_API_KEY, ELEVENLABS_API_KEY, etc.)
-4. **Click** "Start Workspace" and wait ~2 min
-5. **Get Public URL** from dashboard and update iOS app `APIClient.swift`
+1. Visit [Daytona Dashboard](https://app.daytona.io/dashboard/)
+2. Go to [API Keys](https://app.daytona.io/dashboard/keys)
+3. Click "Create Key" → Select scopes → Copy key
 
-#### Method 2: Daytona CLI
+#### Step 2: Install SDK & Configure
 
 ```bash
-# Install Daytona CLI
-curl -sf https://download.daytona.io/daytona/install.sh | sh
+cd backend-api
 
-# Login
-daytona login
+# Install Daytona SDK
+pip install daytona
 
-# Create workspace from GitHub
-daytona create https://github.com/your-username/StyleFinder
+# Add to .env file
+echo "DAYTONA_API_KEY=your-daytona-key-here" >> .env
+```
 
-# Set secrets
-daytona secret set ANTHROPIC_API_KEY=sk-ant-api03-xxx
-daytona secret set ELEVENLABS_API_KEY=xxx
-daytona secret set GEMINI_API_KEY=xxx
+#### Step 3: Deploy
 
-# Start backend
-daytona run start
+```bash
+# Run deployment script
+python daytona_deploy.py
+```
 
-# Get public URL
-daytona url ai-closet-scanner
-# Returns: https://ai-closet-scanner-abc123.daytona.app
+**The script will:**
+1. ✅ Build custom Python 3.11 sandbox
+2. 📦 Install all dependencies automatically
+3. 📁 Upload backend code
+4. 🚀 Start FastAPI server
+5. 🌐 Provide preview URL
+
+#### Step 4: Get Your URL
+
+```
+============================================================
+  ✅ Deployment Successful!
+============================================================
+
+📡 Backend API:     https://preview-abc123.daytona.app
+📚 API Docs:        https://preview-abc123.daytona.app/docs
+📊 Dashboard:       https://preview-abc123.daytona.app/dashboard
+
+🔧 Sandbox ID:      abc123
+============================================================
+```
+
+#### Step 5: Update iOS App
+
+```swift
+// In ClosetAI/Services/APIClient.swift
+private let baseURL = "https://preview-abc123.daytona.app"
 ```
 
 ### 📖 Complete Guide
 
-For detailed instructions, troubleshooting, and advanced configuration, see:
-**[DAYTONA_SETUP.md](./DAYTONA_SETUP.md)** - Complete Daytona integration guide
+For detailed instructions, troubleshooting, and SDK usage, see:
+**[DAYTONA_SETUP.md](./DAYTONA_SETUP.md)** - Complete Daytona SDK guide
 
-### 🔑 Required Secrets
+### 🔧 Managing Sandboxes
 
-Configure these in Daytona dashboard or via CLI:
+```bash
+# Delete sandbox when done
+python daytona_cleanup.py
 
-- `ANTHROPIC_API_KEY` - Claude API key
-- `ELEVENLABS_API_KEY` - Voice synthesis
-- `GEMINI_API_KEY` - Virtual try-on
-- `TIGRIS_ACCESS_KEY` - Cloud storage
-- `TIGRIS_SECRET_KEY` - Cloud storage
-- `GALILEO_API_KEY` - LLM observability
-
-### 🌐 Access Your Deployment
-
-Once deployed, your backend will be available at:
-
-- **API**: `https://your-workspace.daytona.app`
-- **Docs**: `https://your-workspace.daytona.app/docs`
-- **Dashboard**: `https://your-workspace.daytona.app/dashboard`
-- **Health**: `https://your-workspace.daytona.app/health`
-
-### 🔄 Update iOS App
-
-Edit `ClosetAI/Services/APIClient.swift`:
-
-```swift
-// Update baseURL with your Daytona workspace URL
-private let baseURL = "https://your-workspace.daytona.app"
+# Or specify sandbox ID
+python daytona_cleanup.py abc123
 ```
 
 ### 🎯 What You Get
 
-✅ Fully configured Python 3.11 environment
-✅ All dependencies auto-installed
-✅ Public HTTPS URL for backend
-✅ Automatic SSL certificates
-✅ Health checks & auto-restart
-✅ Built-in monitoring dashboard
-✅ Secure secrets management
-✅ Zero DevOps configuration
+✅ Programmatic sandbox creation
+✅ Custom Python 3.11 image with dependencies
+✅ Automatic HTTPS preview URLs
+✅ File upload/download capabilities
+✅ Process execution and monitoring
+✅ SDK-based management (Python/TypeScript)
+✅ Cleanup scripts included
 
 ---
 

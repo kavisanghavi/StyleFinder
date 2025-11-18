@@ -1,61 +1,36 @@
-# 🚀 Daytona Integration Guide
-## AI Closet Scanner - Complete Setup & Deployment
+# 🚀 Daytona SDK Integration Guide
+## AI Closet Scanner - Programmatic Sandbox Deployment
 
-This guide covers everything you need to know about deploying and developing AI Closet Scanner using **Daytona**, the open-source Development Environment Manager.
+This guide covers deploying AI Closet Scanner using the **Daytona SDK** for programmatic sandbox management.
 
 ---
 
 ## 📋 Table of Contents
 
 1. [What is Daytona?](#what-is-daytona)
-2. [Why Use Daytona?](#why-use-daytona)
-3. [Prerequisites](#prerequisites)
+2. [Prerequisites](#prerequisites)
+3. [Getting Your API Key](#getting-your-api-key)
 4. [Quick Start](#quick-start)
-5. [Local Development](#local-development)
-6. [Cloud Deployment](#cloud-deployment)
-7. [Configuration](#configuration)
-8. [Daytona Commands](#daytona-commands)
-9. [Environment Variables & Secrets](#environment-variables--secrets)
-10. [Troubleshooting](#troubleshooting)
-11. [Best Practices](#best-practices)
+5. [Environment Configuration](#environment-configuration)
+6. [Deployment Methods](#deployment-methods)
+7. [Managing Sandboxes](#managing-sandboxes)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
 ## 🎯 What is Daytona?
 
-**Daytona** is an open-source Development Environment Manager (DEM) that provides:
+**Daytona** is an SDK for creating and managing isolated development sandboxes programmatically.
 
-- **Instant Setup** - One command to create fully configured development environments
-- **Standardization** - Everyone on your team uses the exact same environment
-- **Devcontainer Support** - Compatible with VS Code and other IDEs
-- **Self-Hosted or Cloud** - Deploy locally or on cloud infrastructure
-- **Zero DevOps** - No complex Kubernetes or Docker knowledge required
-- **Secure** - Perfect for running AI-generated code safely
+**Key Features:**
+- 🐍 **SDK-based** - Python, TypeScript, JavaScript SDKs
+- 📦 **Sandboxes** - Isolated containerized environments
+- 🔧 **Declarative Images** - Build custom environments on-the-fly
+- 🌐 **Preview URLs** - Automatic HTTPS URLs for running services
+- ⚡ **Fast** - Spin up environments in seconds
+- 🔐 **Secure** - API key-based authentication
 
-**Daytona API**: `https://app.daytona.io/api`
-
----
-
-## ✨ Why Use Daytona?
-
-### For This Project
-
-| Traditional Setup | With Daytona |
-|-------------------|--------------|
-| 30-60 min setup time | **2 min** one-command setup |
-| "Works on my machine" issues | **100% consistent** environments |
-| Manual API key configuration | **Secure secrets** management |
-| Complex deployment | **One-click** deployment |
-| Manual dependency management | **Automatic** installation |
-
-### Key Benefits
-
-1. **Hackathon Ready** - Demo your project instantly without setup
-2. **Team Collaboration** - Share workspaces with teammates
-3. **Public URLs** - Get HTTPS URLs automatically for iOS app integration
-4. **Auto-Restart** - Server crashes? Daytona restarts automatically
-5. **Resource Management** - Automatic CPU/memory allocation
-6. **Built-in Monitoring** - Health checks and metrics out of the box
+**Official Documentation**: https://www.daytona.io/docs/
 
 ---
 
@@ -63,621 +38,448 @@ This guide covers everything you need to know about deploying and developing AI 
 
 ### Required
 
-- **Git** - Version control
-- **GitHub Account** - For repository access
-- **Daytona Account** - Sign up at [daytona.io](https://www.daytona.io/)
+1. **Python 3.11+** (already installed for this project)
+2. **Daytona SDK**:
+   ```bash
+   pip install daytona
+   ```
+3. **Daytona API Key** (see next section)
 
-### Optional (for local development)
+### API Keys for AI Services
 
-- **Docker** - For local devcontainer support
-- **VS Code** - Recommended IDE with devcontainer extension
+You'll also need:
+- **Anthropic Claude**: https://console.anthropic.com/
+- **ElevenLabs**: https://elevenlabs.io/
+- **Google Gemini**: https://makersuite.google.com/app/apikey
+- **Tigris Storage** (optional): https://console.tigris.dev/
+- **Galileo** (optional): https://console.galileo.ai/
 
-### API Keys
+---
 
-You'll need API keys from:
+## 🔑 Getting Your API Key
 
-1. **Anthropic Claude**: https://console.anthropic.com/
-2. **ElevenLabs**: https://elevenlabs.io/
-3. **Google Gemini**: https://makersuite.google.com/app/apikey
-4. **Tigris Storage**: https://console.tigris.dev/
-5. **Galileo**: https://console.galileo.ai/
+1. **Navigate to Daytona Dashboard**
+   ```
+   Visit: https://app.daytona.io/dashboard/
+   ```
+
+2. **Go to API Keys**
+   ```
+   Click: https://app.daytona.io/dashboard/keys
+   ```
+
+3. **Create New Key**
+   ```
+   - Click "Create Key"
+   - Select scopes (recommended: write:sandboxes, delete:sandboxes)
+   - Copy the generated key immediately
+   - Store it securely (it won't be shown again!)
+   ```
+
+4. **Available Scopes**:
+   - `write:sandboxes` - Create sandboxes
+   - `delete:sandboxes` - Delete sandboxes
+   - `write:snapshots` - Create snapshots
+   - `delete:snapshots` - Delete snapshots
+   - `read:volumes` - Read volumes
+   - `write:volumes` - Write volumes
+   - `delete:volumes` - Delete volumes
+   - `read:audit_logs` - View audit logs
 
 ---
 
 ## 🚀 Quick Start
 
-### Method 1: Daytona Web Dashboard (Easiest)
+### Step 1: Install Daytona SDK
 
-1. **Login to Daytona**
-   ```
-   Visit: https://app.daytona.io/
-   Sign in with GitHub
-   ```
-
-2. **Create New Workspace**
-   ```
-   Click "New Workspace"
-   Repository: https://github.com/your-username/StyleFinder
-   Name: ai-closet-scanner
-   ```
-
-3. **Configure Secrets** (in Daytona dashboard)
-   ```
-   Settings → Secrets → Add Secret
-
-   Add these secrets:
-   - ANTHROPIC_API_KEY
-   - ELEVENLABS_API_KEY
-   - GEMINI_API_KEY
-   - TIGRIS_ACCESS_KEY
-   - TIGRIS_SECRET_KEY
-   - GALILEO_API_KEY
-   ```
-
-4. **Start Workspace**
-   ```
-   Click "Start Workspace"
-   Wait 2-3 minutes for initial build
-   ```
-
-5. **Get Your Public URL**
-   ```
-   Your backend will be available at:
-   https://ai-closet-scanner-[random].daytona.app
-   ```
-
-6. **Update iOS App**
-   ```swift
-   // In ClosetAI/Services/APIClient.swift
-   private let baseURL = "https://ai-closet-scanner-[random].daytona.app"
-   ```
-
----
-
-## 💻 Local Development
-
-### Using Daytona CLI
-
-1. **Install Daytona CLI**
-   ```bash
-   # macOS/Linux
-   curl -sf https://download.daytona.io/daytona/install.sh | sh
-
-   # Verify installation
-   daytona version
-   ```
-
-2. **Login**
-   ```bash
-   daytona login
-   # Follow prompts to authenticate
-   ```
-
-3. **Create Workspace**
-   ```bash
-   # From GitHub
-   daytona create https://github.com/your-username/StyleFinder
-
-   # Or from local directory
-   cd /path/to/StyleFinder
-   daytona create .
-   ```
-
-4. **Open in IDE**
-   ```bash
-   # Open in VS Code
-   daytona code ai-closet-scanner
-
-   # Or SSH into workspace
-   daytona ssh ai-closet-scanner
-   ```
-
-5. **Start Backend**
-   ```bash
-   # Inside workspace
-   cd backend-api
-   ./start.sh
-   ```
-
-### Using VS Code Devcontainer (Without Daytona)
-
-1. **Install Docker Desktop**
-   ```bash
-   # Download from: https://www.docker.com/products/docker-desktop
-   ```
-
-2. **Install VS Code Extensions**
-   - Dev Containers (ms-vscode-remote.remote-containers)
-   - Python (ms-python.python)
-
-3. **Open in Container**
-   ```
-   1. Open StyleFinder folder in VS Code
-   2. Press F1 → "Dev Containers: Reopen in Container"
-   3. Wait for container to build (first time: 5-10 min)
-   4. Terminal opens inside container automatically
-   ```
-
-4. **Start Backend**
-   ```bash
-   cd backend-api
-   ./start.sh
-   ```
-
----
-
-## ☁️ Cloud Deployment
-
-### Deploy to Daytona Cloud
-
-1. **Prepare Repository**
-   ```bash
-   # Ensure all files are committed
-   git add .
-   git commit -m "Add Daytona configuration"
-   git push origin main
-   ```
-
-2. **Create Cloud Workspace**
-   ```bash
-   daytona create --target cloud https://github.com/your-username/StyleFinder
-   ```
-
-3. **Configure Environment**
-   ```bash
-   # Set environment variables via CLI
-   daytona env set ANTHROPIC_API_KEY=sk-ant-api03-xxx
-   daytona env set ELEVENLABS_API_KEY=xxx
-   daytona env set GEMINI_API_KEY=xxx
-   # ... (set all required keys)
-   ```
-
-4. **Start Services**
-   ```bash
-   # Start backend
-   daytona exec -- cd backend-api && ./start.sh
-
-   # Or use Daytona command
-   daytona run start
-   ```
-
-5. **Get Public URL**
-   ```bash
-   daytona url ai-closet-scanner
-
-   # Output: https://ai-closet-scanner-abc123.daytona.app
-   ```
-
-6. **Monitor Status**
-   ```bash
-   # Check workspace status
-   daytona list
-
-   # View logs
-   daytona logs ai-closet-scanner
-
-   # Open dashboard
-   open https://ai-closet-scanner-abc123.daytona.app/dashboard
-   ```
-
----
-
-## ⚙️ Configuration
-
-### Daytona Config File
-
-The main configuration is in `.daytona/config.yaml`:
-
-```yaml
-workspace:
-  name: ai-closet-scanner
-  description: "AI-powered wardrobe management"
-
-daytona:
-  api_url: "https://app.daytona.io/api"
-
-ports:
-  - port: 8000
-    visibility: public
-
-commands:
-  start: |
-    cd backend-api
-    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-### Devcontainer Config
-
-Located in `.devcontainer/devcontainer.json`:
-
-```json
-{
-  "name": "AI Closet Scanner",
-  "dockerFile": "Dockerfile",
-  "forwardPorts": [8000],
-  "postCreateCommand": "bash .devcontainer/post-create.sh"
-}
-```
-
-### Environment Variables
-
-Set these in Daytona dashboard or via CLI:
-
-**Required:**
 ```bash
+cd backend-api
+pip install daytona
+```
+
+### Step 2: Configure Environment
+
+Create/update `backend-api/.env`:
+
+```bash
+# Daytona Configuration
+DAYTONA_API_KEY=your-daytona-api-key-here
+DAYTONA_API_URL=https://app.daytona.io/api  # Default, can be omitted
+DAYTONA_TARGET=us  # Optional: deployment region
+
+# AI Services (Required)
 ANTHROPIC_API_KEY=sk-ant-api03-xxx
 ELEVENLABS_API_KEY=xxx
 GEMINI_API_KEY=xxx
+
+# Storage & Monitoring (Optional)
 TIGRIS_ACCESS_KEY=tid_xxx
 TIGRIS_SECRET_KEY=tsec_xxx
 GALILEO_API_KEY=xxx
 ```
 
-**Optional:**
+### Step 3: Deploy to Daytona
+
 ```bash
-BREX_API_KEY=xxx
-WEATHER_API_KEY=xxx
-CLOUDINARY_API_KEY=xxx
-REMOVEBG_API_KEY=xxx
+cd backend-api
+python daytona_deploy.py
+```
+
+This script will:
+1. ✅ Check all requirements
+2. 📦 Build a custom Python 3.11 image with dependencies
+3. 🚀 Create a Daytona sandbox
+4. 📁 Upload backend code
+5. 🔧 Configure environment variables
+6. 🌐 Start the FastAPI server
+7. 📡 Provide your preview URL
+
+### Step 4: Get Your URLs
+
+After deployment completes, you'll see:
+
+```
+====================================== ================
+  ✅ Deployment Successful!
+============================================================
+
+📡 Backend API:     https://preview-abc123.daytona.app
+📚 API Docs:        https://preview-abc123.daytona.app/docs
+📊 Dashboard:       https://preview-abc123.daytona.app/dashboard
+🏥 Health Check:    https://preview-abc123.daytona.app/health
+
+🔧 Sandbox ID:      abc123
+============================================================
+```
+
+### Step 5: Update iOS App
+
+Edit `ClosetAI/Services/APIClient.swift`:
+
+```swift
+// Update with your Daytona preview URL
+private let baseURL = "https://preview-abc123.daytona.app"
 ```
 
 ---
 
-## 🔧 Daytona Commands
+## ⚙️ Environment Configuration
 
-### Workspace Management
+Daytona SDK configuration follows this precedence:
+
+1. **Configuration in Code** (highest priority)
+2. **Environment Variables**
+3. **.env File**
+4. **Default Values** (lowest priority)
+
+### Method 1: .env File (Recommended)
+
+Create `backend-api/.env`:
 
 ```bash
-# List all workspaces
-daytona list
-
-# Create workspace
-daytona create <repo-url>
-
-# Start workspace
-daytona start ai-closet-scanner
-
-# Stop workspace
-daytona stop ai-closet-scanner
-
-# Delete workspace
-daytona delete ai-closet-scanner
-
-# Get workspace info
-daytona info ai-closet-scanner
+DAYTONA_API_KEY=your-key-here
+DAYTONA_API_URL=https://app.daytona.io/api
+DAYTONA_TARGET=us
 ```
 
-### Development Commands
+### Method 2: Environment Variables
 
 ```bash
-# Open in VS Code
-daytona code ai-closet-scanner
+# macOS/Linux
+export DAYTONA_API_KEY=your-key-here
+export DAYTONA_API_URL=https://app.daytona.io/api
+export DAYTONA_TARGET=us
 
-# SSH into workspace
-daytona ssh ai-closet-scanner
-
-# Execute command
-daytona exec ai-closet-scanner -- <command>
-
-# View logs
-daytona logs ai-closet-scanner
-
-# Follow logs
-daytona logs -f ai-closet-scanner
+# Windows PowerShell
+$env:DAYTONA_API_KEY="your-key-here"
+$env:DAYTONA_API_URL="https://app.daytona.io/api"
+$env:DAYTONA_TARGET="us"
 ```
 
-### Custom Commands (from config.yaml)
+### Method 3: Configuration in Code
 
-```bash
-# Run setup
-daytona run setup
+```python
+from daytona import DaytonaConfig, Daytona
 
-# Start backend
-daytona run start
+config = DaytonaConfig(
+    api_key="your-key-here",
+    api_url="https://app.daytona.io/api",
+    target="us"
+)
 
-# Start in production mode
-daytona run start:prod
-
-# Run tests
-daytona run test
-
-# View workspace info
-daytona run info
-
-# Open dashboard
-daytona run dashboard
-```
-
-### Environment & Secrets
-
-```bash
-# Set environment variable
-daytona env set KEY=value
-
-# List environment variables
-daytona env list
-
-# Remove environment variable
-daytona env unset KEY
-
-# Set secret (encrypted)
-daytona secret set SECRET_KEY value
-
-# List secrets
-daytona secret list
-```
-
-### Networking
-
-```bash
-# Get public URL
-daytona url ai-closet-scanner
-
-# Port forward
-daytona port-forward ai-closet-scanner 8000:8000
-
-# List open ports
-daytona ports ai-closet-scanner
+daytona = Daytona(config=config)
 ```
 
 ---
 
-## 🔐 Environment Variables & Secrets
+## 🛠️ Deployment Methods
 
-### Setting Secrets via Dashboard
+### Automated Deployment (Recommended)
 
-1. **Navigate to Workspace Settings**
-   ```
-   Daytona Dashboard → Workspaces → ai-closet-scanner → Settings
-   ```
-
-2. **Add Secrets**
-   ```
-   Secrets Tab → Add Secret
-
-   Name: ANTHROPIC_API_KEY
-   Value: sk-ant-api03-xxx
-   [✓] Encrypt this secret
-   ```
-
-3. **Verify Secrets**
-   ```bash
-   daytona secret list
-   ```
-
-### Setting Secrets via CLI
+Use the provided deployment script:
 
 ```bash
-# Add secret
-daytona secret set ANTHROPIC_API_KEY sk-ant-api03-xxx
-
-# Add multiple secrets
-daytona secret set \
-  ELEVENLABS_API_KEY=xxx \
-  GEMINI_API_KEY=xxx \
-  TIGRIS_ACCESS_KEY=tid_xxx
-
-# Verify
-daytona secret list
+cd backend-api
+python daytona_deploy.py
 ```
 
-### Loading from .env File
+**What it does:**
+- Checks all requirements
+- Builds custom image with all dependencies
+- Creates sandbox
+- Uploads code
+- Configures environment
+- Starts server
+- Returns preview URL
+
+### Manual Deployment (Advanced)
+
+```python
+from daytona import Daytona, Image, CreateSandboxFromImageParams
+import os
+
+# Initialize Daytona
+daytona = Daytona()
+
+# Build custom image
+image = (
+    Image.python("3.11")
+    .pip_install([
+        "fastapi==0.104.1",
+        "uvicorn[standard]==0.24.0",
+        "anthropic==0.7.1",
+        # ... other dependencies
+    ])
+    .env({
+        'ANTHROPIC_API_KEY': os.getenv('ANTHROPIC_API_KEY'),
+        'ELEVENLABS_API_KEY': os.getenv('ELEVENLABS_API_KEY'),
+    })
+    .workdir("/workspace")
+)
+
+# Create sandbox
+sandbox = daytona.create(
+    CreateSandboxFromImageParams(image=image)
+)
+
+# Upload code
+sandbox.fs.upload("backend-api/app", "/workspace/app")
+
+# Start server
+sandbox.process.start_and_wait(
+    cmd="uvicorn app.main:app --host 0.0.0.0 --port 8000",
+    background=True
+)
+
+# Get preview URL
+preview_url = f"https://preview-{sandbox.id}.daytona.app"
+print(f"API running at: {preview_url}")
+```
+
+---
+
+## 📊 Managing Sandboxes
+
+### List Your Sandboxes
+
+```python
+from daytona import Daytona
+
+daytona = Daytona()
+sandboxes = daytona.list_sandboxes()
+
+for sandbox in sandboxes:
+    print(f"ID: {sandbox.id}, Status: {sandbox.status}")
+```
+
+### Get Sandbox Details
+
+```python
+sandbox_id = "abc123"
+sandbox = daytona.get_sandbox(sandbox_id)
+
+print(f"ID: {sandbox.id}")
+print(f"Status: {sandbox.status}")
+print(f"URL: https://preview-{sandbox.id}.daytona.app")
+```
+
+### Delete Sandbox
+
+Use the cleanup script:
 
 ```bash
-# Copy .env.example to .env
-cp backend-api/.env.example backend-api/.env
+# Delete specific sandbox
+python daytona_cleanup.py abc123
 
-# Edit .env with your keys
-nano backend-api/.env
+# Delete last created sandbox (from .daytona_sandbox_id file)
+python daytona_cleanup.py
+```
 
-# Upload to Daytona
-daytona env load backend-api/.env
+Or programmatically:
+
+```python
+sandbox = daytona.get_sandbox("abc123")
+sandbox.delete()
+print("Sandbox deleted!")
+```
+
+### Execute Commands in Sandbox
+
+```python
+# Run a command
+result = sandbox.process.code_run("pip list")
+print(result.result)
+
+# Check server logs
+result = sandbox.process.code_run("tail /tmp/uvicorn.log")
+print(result.result)
+```
+
+### File Operations
+
+```python
+# Upload file
+sandbox.fs.upload("local/path/file.py", "/workspace/file.py")
+
+# Download file
+sandbox.fs.download("/workspace/logs.txt", "local/logs.txt")
+
+# Read file content
+content = sandbox.fs.read("/workspace/.env")
+print(content)
+
+# Write file
+sandbox.fs.write("/workspace/config.json", '{"debug": true}')
 ```
 
 ---
 
 ## 🐛 Troubleshooting
 
-### Common Issues
-
-#### 1. "Workspace failed to start"
+### Issue: "DAYTONA_API_KEY not set"
 
 **Solution:**
 ```bash
-# Check logs
-daytona logs ai-closet-scanner
+# Check if key is set
+echo $DAYTONA_API_KEY
 
-# Rebuild workspace
-daytona rebuild ai-closet-scanner
+# Set it
+export DAYTONA_API_KEY=your-key-here
 
-# If still fails, delete and recreate
-daytona delete ai-closet-scanner
-daytona create https://github.com/your-username/StyleFinder
+# Or add to .env file
+echo "DAYTONA_API_KEY=your-key-here" >> backend-api/.env
 ```
 
-#### 2. "Port 8000 already in use"
+### Issue: "Module 'daytona' not found"
 
 **Solution:**
 ```bash
-# Kill existing process
-daytona exec -- lsof -ti:8000 | xargs kill -9
+pip install daytona
 
-# Or restart workspace
-daytona restart ai-closet-scanner
+# Verify installation
+python -c "import daytona; print(daytona.__version__)"
 ```
 
-#### 3. "Missing API keys"
+### Issue: "Invalid API key"
+
+**Solution:**
+1. Get a new key from https://app.daytona.io/dashboard/keys
+2. Ensure you copied the entire key
+3. Check for extra spaces or quotes
+4. Verify the key has required scopes (write:sandboxes)
+
+### Issue: "Sandbox creation failed"
 
 **Solution:**
 ```bash
-# Verify secrets are set
-daytona secret list
+# Check your Daytona account status
+# Ensure you have available sandbox quota
+# Try with simpler image first:
 
-# Set missing secrets
-daytona secret set ANTHROPIC_API_KEY sk-ant-api03-xxx
-
-# Restart workspace
-daytona restart ai-closet-scanner
+from daytona import Daytona, Image
+daytona = Daytona()
+sandbox = daytona.create()  # Uses default image
 ```
 
-#### 4. "Cannot connect to backend from iOS app"
+### Issue: "Preview URL not accessible"
 
 **Solution:**
-```bash
-# Get public URL
-daytona url ai-closet-scanner
+1. Wait 30-60 seconds for service to start
+2. Check if server is running:
+   ```python
+   result = sandbox.process.code_run("ps aux | grep uvicorn")
+   print(result.result)
+   ```
+3. Check server logs:
+   ```python
+   result = sandbox.process.code_run("cat /tmp/uvicorn.log")
+   print(result.result)
+   ```
 
-# Verify backend is running
-curl $(daytona url ai-closet-scanner)/health
-
-# Update iOS app with correct URL
-# File: ClosetAI/Services/APIClient.swift
-```
-
-#### 5. "Dependencies not installing"
+### Issue: "Missing dependencies in sandbox"
 
 **Solution:**
-```bash
-# SSH into workspace
-daytona ssh ai-closet-scanner
 
-# Manually install
-cd backend-api
-pip install -r requirements.txt
+Update `daytona_deploy.py` to include missing packages:
 
-# Or run setup command
-daytona run setup
-```
-
-### Health Checks
-
-```bash
-# Check workspace status
-daytona info ai-closet-scanner
-
-# Check backend health
-curl $(daytona url ai-closet-scanner)/health
-
-# View metrics dashboard
-open $(daytona url ai-closet-scanner)/dashboard
-
-# Check Python version
-daytona exec -- python3 --version
-
-# Check installed packages
-daytona exec -- pip list
-```
-
-### Getting Help
-
-```bash
-# Daytona help
-daytona --help
-
-# Command-specific help
-daytona create --help
-
-# View documentation
-daytona docs
-
-# Check version
-daytona version
+```python
+image = (
+    Image.python("3.11")
+    .pip_install([
+        "your-missing-package",
+        # ... existing packages
+    ])
+)
 ```
 
 ---
 
 ## 🎯 Best Practices
 
-### Development Workflow
+### 1. **Use .env for Secrets**
+```bash
+# Never commit .env files
+echo ".env" >> .gitignore
 
-1. **Use Branches**
-   ```bash
-   git checkout -b feature/new-feature
-   daytona create . --branch feature/new-feature
-   ```
+# Always use environment variables for secrets
+DAYTONA_API_KEY=xxx  # Not in code!
+```
 
-2. **Commit Often**
-   ```bash
-   # Changes persist in workspace
-   git add .
-   git commit -m "Add feature"
-   git push
-   ```
+### 2. **Clean Up Unused Sandboxes**
+```python
+# Delete sandbox when done
+sandbox.delete()
 
-3. **Test Locally First**
-   ```bash
-   # Test in local devcontainer
-   # Then deploy to Daytona cloud
-   daytona create --target cloud .
-   ```
+# Or use the cleanup script
+python daytona_cleanup.py
+```
 
-### Security
+### 3. **Monitor Resource Usage**
+```bash
+# Check sandbox count
+daytona = Daytona()
+sandboxes = daytona.list_sandboxes()
+print(f"Active sandboxes: {len(sandboxes)}")
+```
 
-1. **Never Commit Secrets**
-   ```bash
-   # Always use Daytona secrets management
-   # Never add API keys to .env in git
-   ```
+### 4. **Handle Errors Gracefully**
+```python
+try:
+    sandbox = create_sandbox()
+    deploy_backend(sandbox)
+except Exception as e:
+    print(f"Deployment failed: {e}")
+    sandbox.delete()  # Clean up on failure
+```
 
-2. **Use Environment-Specific Configs**
-   ```bash
-   # Development
-   ENVIRONMENT=development
+### 5. **Use Snapshots for Common Environments**
+```python
+# Create snapshot of configured sandbox
+snapshot = sandbox.create_snapshot()
 
-   # Production
-   ENVIRONMENT=production
-   ```
-
-3. **Rotate Keys Regularly**
-   ```bash
-   # Update secrets periodically
-   daytona secret set ANTHROPIC_API_KEY new-key-xxx
-   ```
-
-### Performance
-
-1. **Use Prebuilds**
-   ```yaml
-   # In .daytona/config.yaml
-   commands:
-     prebuild: |
-       pip install -r backend-api/requirements.txt
-   ```
-
-2. **Cache Dependencies**
-   ```yaml
-   volumes:
-     - type: volume
-       source: python-packages
-       target: /usr/local/lib/python3.11/site-packages
-   ```
-
-3. **Optimize Resources**
-   ```yaml
-   resources:
-     cpu: "2"      # Adjust based on load
-     memory: "4Gi"  # Increase if needed
-   ```
-
-### Collaboration
-
-1. **Share Workspaces**
-   ```bash
-   # Invite team member
-   daytona share ai-closet-scanner --email team@example.com
-   ```
-
-2. **Use Git**
-   ```bash
-   # All team members work from same repo
-   # Daytona handles environment consistency
-   ```
-
-3. **Document Changes**
-   ```bash
-   # Update this file with any config changes
-   # Keep DAYTONA_SETUP.md current
-   ```
+# Create new sandbox from snapshot (faster)
+new_sandbox = daytona.create_from_snapshot(snapshot.id)
+```
 
 ---
 
@@ -685,61 +487,69 @@ daytona version
 
 ### Documentation
 
-- **Daytona Docs**: https://www.daytona.io/docs
-- **Devcontainer Spec**: https://containers.dev/
-- **FastAPI Docs**: https://fastapi.tiangolo.com/
+- **Daytona Docs**: https://www.daytona.io/docs/
+- **Daytona Dashboard**: https://app.daytona.io/dashboard/
+- **API Keys**: https://app.daytona.io/dashboard/keys
+- **Python SDK**: `pip show daytona`
+
+### Example Scripts
+
+All scripts are in `backend-api/`:
+
+- **daytona_deploy.py** - Automated deployment
+- **daytona_cleanup.py** - Cleanup sandboxes
 
 ### Support
 
 - **Daytona GitHub**: https://github.com/daytonaio/daytona
-- **Daytona Discord**: https://discord.gg/daytona
 - **Project Issues**: https://github.com/your-username/StyleFinder/issues
 
-### Example Commands
+---
+
+## ✅ Quick Reference
 
 ```bash
-# Complete deployment from scratch
-daytona create --target cloud https://github.com/your-username/StyleFinder
-daytona secret set ANTHROPIC_API_KEY=xxx ELEVENLABS_API_KEY=xxx GEMINI_API_KEY=xxx
-daytona run start
-daytona url ai-closet-scanner
+# Install SDK
+pip install daytona
 
-# Daily development
-daytona start ai-closet-scanner
-daytona code ai-closet-scanner
-# Make changes, test, commit
-daytona logs -f ai-closet-scanner
+# Get API key
+open https://app.daytona.io/dashboard/keys
 
-# Demo for hackathon
-daytona url ai-closet-scanner
-# Share URL with judges
-open $(daytona url ai-closet-scanner)/dashboard
+# Configure environment
+cp .env.example .env
+# Edit .env and add DAYTONA_API_KEY
+
+# Deploy
+python daytona_deploy.py
+
+# Cleanup
+python daytona_cleanup.py
 ```
 
 ---
 
 ## 🎉 You're All Set!
 
-Your AI Closet Scanner is now running on Daytona! Here's what you have:
+Your AI Closet Scanner is now deployable via Daytona SDK! Here's what you have:
 
-- ✅ Fully configured development environment
-- ✅ Public HTTPS URL for your backend API
-- ✅ Automatic dependency management
-- ✅ Secure secrets storage
-- ✅ Built-in monitoring and health checks
-- ✅ One-command deployment
-- ✅ Team collaboration ready
+- ✅ Programmatic sandbox management
+- ✅ Custom image with all dependencies
+- ✅ Automatic preview URLs
+- ✅ Environment configuration
+- ✅ Deployment and cleanup scripts
+- ✅ Complete documentation
 
 **Next Steps:**
 
-1. Update iOS app with your Daytona backend URL
-2. Test all API endpoints
-3. Check the metrics dashboard
-4. Share with your team or judges
+1. Get your Daytona API key
+2. Configure `.env` file
+3. Run `python daytona_deploy.py`
+4. Update iOS app with preview URL
+5. Test your API!
 
-**Happy Hacking! 🚀**
+**Happy Deploying! 🚀**
 
 ---
 
 *Last Updated: 2024*
-*For issues or questions, open an issue on GitHub*
+*Based on Daytona SDK documentation: https://www.daytona.io/docs/llms-full.txt*
