@@ -118,10 +118,10 @@ def deploy_backend(sandbox):
 
     # Create necessary directories
     print("   Creating directories...")
-    sandbox.fs.create_folder("/workspace/app")
-    sandbox.fs.create_folder("/workspace/app/services")
-    sandbox.fs.create_folder("/workspace/app/monitoring")
-    sandbox.fs.create_folder("/workspace/app/static")
+    sandbox.fs.create_folder("/workspace/app", "755")
+    sandbox.fs.create_folder("/workspace/app/services", "755")
+    sandbox.fs.create_folder("/workspace/app/monitoring", "755")
+    sandbox.fs.create_folder("/workspace/app/static", "755")
 
     # Upload application code files
     print("   Uploading Python files...")
