@@ -93,6 +93,29 @@ class WardrobeViewModel: ObservableObject {
         }
     }
 
+    /// Update an existing item (used to replace placeholder with real data)
+    func updateItem(_ itemId: UUID, with newItem: ClothingItem) {
+        Task {
+            do {
+                // Delete old and save new
+                try persistence.deleteItem(itemId)
+                try persistence.saveClothingItem(newItem, imageData: nil)
+
+                await MainActor.run {
+                    if let index = self.items.firstIndex(where: { $0.id == itemId }) {
+                        self.items[index] = newItem
+                    }
+                    self.updateStatistics()
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to update item: \(error.localizedDescription)"
+                    self.showError = true
+                }
+            }
+        }
+    }
+
     /// Delete an item
     func deleteItem(_ item: ClothingItem) {
         Task {

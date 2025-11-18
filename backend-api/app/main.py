@@ -36,6 +36,13 @@ from app.services.background_removal_service import background_removal_service
 from app.monitoring.galileo_observer import galileo_observer
 from app.config import settings
 
+# Import database
+from app.database import init_db, get_db
+from app.models import ClothingItem as ClothingItemModel
+from sqlalchemy.orm import Session
+from fastapi import Depends
+import uuid
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -200,7 +207,8 @@ async def get_forecast(city: str, days: int = 3):
 async def analyze_clothing(
     file: UploadFile = File(...),
     user_id: Optional[str] = Form(None),
-    remove_background: Optional[bool] = Form(True)
+    remove_background: Optional[bool] = Form(True),
+    db: Session = Depends(get_db)
 ):
     """
     Analyze a clothing item using Claude's vision capabilities.
@@ -296,6 +304,7 @@ async def analyze_clothing(
 
         # === STEP 2: Remove background and extract clothing ===
         extracted_image_url = None
+        extracted_image_data = None
         background_was_removed = False
         analysis_image_base64 = image_base64  # Default to original
 
@@ -368,7 +377,9 @@ async def analyze_clothing(
 
         # === STEP 3: Analyze with Claude ===
         logger.info("🤖 Auto-generating metadata with Claude...")
-        analysis = await claude_service.analyze_clothing(analysis_image_base64, content_type)
+        # If background was removed, image is now PNG, not original type
+        analysis_content_type = "image/png" if background_was_removed else content_type
+        analysis = await claude_service.analyze_clothing(analysis_image_base64, analysis_content_type)
 
         # MVP-C.2: Extract individual clothing items with Gemini
         if analysis.get('item_count', 1) > 1 and analysis.get('all_items'):
@@ -391,15 +402,86 @@ async def analyze_clothing(
 
         logger.info(f"✅ Analysis complete: {analysis.get('item_count', 1)} item(s) processed!")
 
-        # === STEP 4: Add Tigris URLs to response ===
+        # === STEP 4: Add Tigris URLs and extracted image to response ===
         analysis['original_image_url'] = original_image_url
         analysis['extracted_image_url'] = extracted_image_url
         analysis['background_was_removed'] = background_was_removed
+
+        # Add extracted image as base64 for iOS app to save locally
+        if background_was_removed and extracted_image_data:
+            analysis['extracted_image'] = base64.b64encode(extracted_image_data).decode('utf-8')
+            logger.info("📦 Added extracted image to response (base64)")
+
+        # === STEP 5: Save to database ===
+        if user_id:
+            try:
+                item_id = str(uuid.uuid4())  # Generate UUID for item
+                db_item = ClothingItemModel(
+                    id=item_id,
+                    user_id=user_id,
+                    original_image_url=original_image_url,
+                    extracted_image_url=extracted_image_url,
+                    type=analysis.get('type', ''),
+                    color=analysis.get('color', ''),
+                    pattern=analysis.get('pattern', ''),
+                    style=analysis.get('style', ''),
+                    confidence=analysis.get('confidence', 0.0),
+                    season=analysis.get('season', []),
+                    pairs_well_with=analysis.get('pairs_well_with', []),
+                    occasion=analysis.get('occasion'),
+                    material=analysis.get('material'),
+                    care_instructions=analysis.get('care_instructions')
+                )
+                db.add(db_item)
+                db.commit()
+                db.refresh(db_item)
+                logger.info(f"💾 Saved item to database: {item_id}")
+
+                # Add item ID to response
+                analysis['item_id'] = item_id
+            except Exception as db_error:
+                logger.error(f"❌ Database save failed: {db_error}")
+                db.rollback()
+                # Don't fail the request if DB save fails
 
         return analysis
 
     except Exception as e:
         logger.error(f"❌ Clothing analysis error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get(
+    "/closet/{user_id}",
+    tags=["Closet"],
+    summary="Get user's closet items",
+    description="Fetch all clothing items for a specific user from the database."
+)
+async def get_user_closet(
+    user_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get all clothing items for a user.
+
+    Returns:
+        List of clothing items with metadata and image URLs
+    """
+    try:
+        items = db.query(ClothingItemModel).filter(
+            ClothingItemModel.user_id == user_id
+        ).order_by(
+            ClothingItemModel.created_at.desc()
+        ).all()
+
+        return {
+            "user_id": user_id,
+            "item_count": len(items),
+            "items": [item.to_dict() for item in items]
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Failed to fetch closet: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -788,7 +870,10 @@ async def demo_dashboard():
 
 @app.on_event("startup")
 async def startup_event():
-    """Log startup information."""
+    """Log startup information and initialize database."""
+    # Initialize database
+    init_db()
+
     logger.info("=" * 60)
     logger.info("🚀 AI Closet Scanner API Starting...")
     logger.info("=" * 60)
@@ -803,6 +888,7 @@ async def startup_event():
     logger.info(f"  ☁️  Tigris: {'✅ Enabled' if tigris_service.enabled else '❌ Disabled'}")
     logger.info(f"  💳 Brex: {'✅ Enabled' if brex_service.enabled else '❌ Disabled'}")
     logger.info(f"  📊 Galileo: {'✅ Enabled' if galileo_observer.galileo_enabled else '❌ Disabled'}")
+    logger.info(f"  💾 Database: ✅ Enabled (SQLite)")
     logger.info("=" * 60)
     logger.info("✅ API Ready!")
     logger.info("=" * 60)

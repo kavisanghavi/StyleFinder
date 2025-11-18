@@ -49,314 +49,103 @@ struct ScannerSheetView: View {
     @Environment(\.dismiss) var dismiss
     @State private var showingImagePicker = false
     @State private var showingCamera = false
-    @State private var selectedImage: UIImage?
-    @State private var isAnalyzing = false
-    @State private var analysisResult: ClothingAnalysis?
-    @State private var allItems: [ClothingAnalysis] = []
-    @State private var showingError = false
-    @State private var errorMessage = ""
-    @State private var showingSaveSuccess = false
-    @State private var itemsSaved = 0
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 32) {
-                    // Header
-                    VStack(spacing: 8) {
-                        Text("Add to Closet")
-                            .font(.system(size: 28, weight: .bold))
+            VStack(spacing: 32) {
+                // Header
+                VStack(spacing: 8) {
+                    Text("Add to Closet")
+                        .font(.system(size: 28, weight: .bold))
 
-                        Text("AI will auto-generate all metadata")
-                            .font(.system(size: 15))
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.top, 12)
+                    Text("AI will analyze in the background")
+                        .font(.system(size: 15))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.top, 40)
 
-                    // Image Section
-                    if let image = selectedImage {
-                        ZStack(alignment: .topTrailing) {
-                            Image(uiImage: image)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 320)
-                                .clipShape(RoundedRectangle(cornerRadius: 24))
-                                .padding(.horizontal, 20)
+                Spacer()
 
-                            Button(action: {
-                                withAnimation(.spring(response: 0.3)) {
-                                    selectedImage = nil
-                                    analysisResult = nil
+                VStack(spacing: 16) {
+                    // Camera Button
+                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                        Button(action: { showingCamera = true }) {
+                            HStack(spacing: 16) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color(hex: "6366F1").opacity(0.1))
+                                        .frame(width: 60, height: 60)
+
+                                    Image(systemName: "camera.fill")
+                                        .font(.system(size: 28))
+                                        .foregroundColor(Color(hex: "6366F1"))
                                 }
-                            }) {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .frame(width: 32, height: 32)
-                                    .background(.ultraThinMaterial)
-                                    .clipShape(Circle())
-                            }
-                            .padding(28)
-                        }
-                    } else {
-                        VStack(spacing: 12) {
-                            // Camera Button (only show if camera is available)
-                            if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                                Button(action: { showingCamera = true }) {
-                                    HStack(spacing: 16) {
-                                        ZStack {
-                                            Circle()
-                                                .fill(Color(hex: "6366F1").opacity(0.1))
-                                                .frame(width: 56, height: 56)
 
-                                            Image(systemName: "camera.fill")
-                                                .font(.system(size: 24))
-                                                .foregroundColor(Color(hex: "6366F1"))
-                                        }
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Take Photo")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundColor(.primary)
 
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text("Take Photo")
-                                                .font(.system(size: 17, weight: .semibold))
-                                                .foregroundColor(.primary)
-
-                                            Text("Use camera to scan clothing")
-                                                .font(.system(size: 14))
-                                                .foregroundColor(.secondary)
-                                        }
-
-                                        Spacer()
-
-                                        Image(systemName: "chevron.right")
-                                            .font(.system(size: 14, weight: .semibold))
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .padding(16)
-                                    .background(Color.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                    .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 2)
-                                }
-                                .buttonStyle(.plain)
-                            }
-
-                            // Photo Library Button
-                            Button(action: { showingImagePicker = true }) {
-                                HStack(spacing: 16) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(Color(hex: "8B5CF6").opacity(0.1))
-                                            .frame(width: 56, height: 56)
-
-                                        Image(systemName: "photo.on.rectangle")
-                                            .font(.system(size: 24))
-                                            .foregroundColor(Color(hex: "8B5CF6"))
-                                    }
-
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("Choose Photo")
-                                            .font(.system(size: 17, weight: .semibold))
-                                            .foregroundColor(.primary)
-
-                                        Text("Pick from your photo library")
-                                            .font(.system(size: 14))
-                                            .foregroundColor(.secondary)
-                                    }
-
-                                    Spacer()
-
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 14, weight: .semibold))
+                                    Text("Instant AI analysis")
+                                        .font(.system(size: 15))
                                         .foregroundColor(.secondary)
                                 }
-                                .padding(16)
-                                .background(Color.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 2)
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.secondary)
                             }
-                            .buttonStyle(.plain)
+                            .padding(20)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 20)
+                        .buttonStyle(.plain)
                     }
 
-                    // Analyze Button
-                    if selectedImage != nil && analysisResult == nil {
-                        Button(action: analyzeImage) {
-                            HStack(spacing: 8) {
-                                if isAnalyzing {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                        .scaleEffect(0.9)
-                                } else {
-                                    Image(systemName: "sparkles")
-                                        .font(.system(size: 16, weight: .semibold))
-                                }
-                                Text(isAnalyzing ? "Analyzing..." : "Analyze with AI")
-                                    .font(.system(size: 17, weight: .semibold))
+                    // Photo Library Button
+                    Button(action: { showingImagePicker = true }) {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color(hex: "8B5CF6").opacity(0.1))
+                                    .frame(width: 60, height: 60)
+
+                                Image(systemName: "photo.on.rectangle")
+                                    .font(.system(size: 28))
+                                    .foregroundColor(Color(hex: "8B5CF6"))
                             }
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(Color(hex: "6366F1"))
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Choose Photo")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(.primary)
+
+                                Text("From your library")
+                                    .font(.system(size: 15))
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.secondary)
                         }
-                        .disabled(isAnalyzing)
-                        .padding(.horizontal, 20)
+                        .padding(20)
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
                     }
-
-                    // Results
-                    if let result = analysisResult {
-                        VStack(alignment: .leading, spacing: 20) {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(Color(hex: "10B981"))
-
-                                if allItems.count > 1 {
-                                    Text("Found \(allItems.count) Items!")
-                                        .font(.system(size: 20, weight: .semibold))
-                                } else {
-                                    Text("Analysis Complete")
-                                        .font(.system(size: 20, weight: .semibold))
-                                }
-                            }
-                            .padding(.horizontal, 20)
-
-                            // Show all extracted items
-                            if allItems.count > 1 {
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: 12) {
-                                        ForEach(Array(allItems.enumerated()), id: \.offset) { index, item in
-                                            VStack(spacing: 8) {
-                                                // Show extracted image if available
-                                                if let extractedBase64 = item.extracted_image,
-                                                   let imageData = Data(base64Encoded: extractedBase64),
-                                                   let uiImage = UIImage(data: imageData) {
-                                                    Image(uiImage: uiImage)
-                                                        .resizable()
-                                                        .scaledToFit()
-                                                        .frame(width: 120, height: 120)
-                                                        .background(Color.white)
-                                                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                                                } else {
-                                                    ZStack {
-                                                        RoundedRectangle(cornerRadius: 12)
-                                                            .fill(Color.gray.opacity(0.1))
-                                                            .frame(width: 120, height: 120)
-
-                                                        Image(systemName: "tshirt")
-                                                            .font(.system(size: 40))
-                                                            .foregroundColor(.gray)
-                                                    }
-                                                }
-
-                                                Text("\(item.color) \(item.type)")
-                                                    .font(.system(size: 13, weight: .semibold))
-                                                    .lineLimit(2)
-                                                    .multilineTextAlignment(.center)
-                                            }
-                                            .frame(width: 120)
-                                        }
-                                    }
-                                    .padding(.horizontal, 20)
-                                }
-                            }
-
-                            VStack(spacing: 0) {
-                                ResultRow(icon: "tag", label: "Type", value: result.type.capitalized)
-                                Divider().padding(.leading, 56)
-                                ResultRow(icon: "paintpalette", label: "Color", value: result.color.capitalized)
-                                Divider().padding(.leading, 56)
-                                ResultRow(icon: "square.grid.2x2", label: "Pattern", value: result.pattern.capitalized)
-                                Divider().padding(.leading, 56)
-                                ResultRow(icon: "star", label: "Style", value: result.style.capitalized)
-                                Divider().padding(.leading, 56)
-                                ResultRow(icon: "calendar", label: "Seasons", value: result.season.joined(separator: ", "))
-                            }
-                            .background(Color(hex: "F9FAFB"))
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .padding(.horizontal, 20)
-
-                            if !result.pairs_well_with.isEmpty {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("Pairs Well With")
-                                        .font(.system(size: 17, weight: .semibold))
-                                        .padding(.horizontal, 20)
-
-                                    ScrollView(.horizontal, showsIndicators: false) {
-                                        HStack(spacing: 8) {
-                                            ForEach(result.pairs_well_with, id: \.self) { item in
-                                                Text(item.capitalized)
-                                                    .font(.system(size: 15, weight: .medium))
-                                                    .foregroundColor(Color(hex: "6366F1"))
-                                                    .padding(.horizontal, 16)
-                                                    .padding(.vertical, 8)
-                                                    .background(Color(hex: "6366F1").opacity(0.1))
-                                                    .clipShape(Capsule())
-                                            }
-                                        }
-                                        .padding(.horizontal, 20)
-                                    }
-                                }
-                            }
-
-                            // Action Buttons
-                            HStack(spacing: 12) {
-                                Button(action: {
-                                    withAnimation(.spring(response: 0.3)) {
-                                        selectedImage = nil
-                                        analysisResult = nil
-                                    }
-                                }) {
-                                    Text("Scan Another")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(Color(hex: "6366F1"))
-                                        .frame(maxWidth: .infinity)
-                                        .frame(height: 52)
-                                        .background(Color(hex: "6366F1").opacity(0.1))
-                                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                }
-
-                                Button(action: saveToWardrobe) {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: showingSaveSuccess ? "checkmark" : "plus.circle.fill")
-                                            .font(.system(size: 15))
-
-                                        if showingSaveSuccess {
-                                            Text("Saved \(itemsSaved) item(s)!")
-                                                .font(.system(size: 16, weight: .semibold))
-                                        } else if allItems.count > 1 {
-                                            Text("Save All \(allItems.count) Items")
-                                                .font(.system(size: 16, weight: .semibold))
-                                        } else {
-                                            Text("Save to Closet")
-                                                .font(.system(size: 16, weight: .semibold))
-                                        }
-                                    }
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 52)
-                                    .background(
-                                        LinearGradient(
-                                            colors: showingSaveSuccess ?
-                                                [Color(hex: "10B981"), Color(hex: "10B981")] :
-                                                [Color(hex: "6366F1"), Color(hex: "8B5CF6")],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
-                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                }
-                                .disabled(showingSaveSuccess)
-                            }
-                            .padding(.horizontal, 20)
-                        }
-                        .padding(.top, 8)
-                    }
+                    .buttonStyle(.plain)
                 }
-                .padding(.vertical, 20)
+                .padding(.horizontal, 24)
+
+                Spacer()
             }
-            .background(Color(hex: "FFFFFF"))
+            .background(Color(hex: "F8F9FA"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -366,101 +155,83 @@ struct ScannerSheetView: View {
                 }
             }
             .sheet(isPresented: $showingImagePicker) {
-                ImagePicker(image: $selectedImage, sourceType: .photoLibrary)
+                ImagePicker(image: Binding(
+                    get: { nil },
+                    set: { if let image = $0 { handleImageSelected(image) } }
+                ), sourceType: .photoLibrary)
             }
             .sheet(isPresented: $showingCamera) {
-                ImagePicker(image: $selectedImage, sourceType: .camera)
-            }
-            .alert("Error", isPresented: $showingError) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(errorMessage)
+                ImagePicker(image: Binding(
+                    get: { nil },
+                    set: { if let image = $0 { handleImageSelected(image) } }
+                ), sourceType: .camera)
             }
         }
     }
 
-    func analyzeImage() {
-        guard let image = selectedImage,
-              let imageData = image.jpegData(compressionQuality: 0.8) else {
-            errorMessage = "Failed to process image"
-            showingError = true
+    func handleImageSelected(_ image: UIImage) {
+        guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+            print("❌ Failed to process image")
             return
         }
 
-        isAnalyzing = true
+        // Create placeholder item immediately
+        let placeholderId = UUID()
+        let placeholder = ClothingItem(
+            id: placeholderId,
+            imagePath: "",
+            type: "Analyzing...",
+            color: "",
+            pattern: "",
+            style: "",
+            season: [],
+            pairsWellWith: [],
+            confidence: 0.0,
+            isProcessing: true
+        )
 
+        // Add placeholder to closet immediately
+        wardrobeVM.addItem(placeholder, imageData: nil)
+
+        // Close the sheet immediately
+        dismiss()
+
+        // Process in background
         Task {
             do {
+                print("🚀 Starting async analysis...")
                 let analysis = try await APIClient.shared.analyzeClothing(imageData: imageData)
-                await MainActor.run {
-                    withAnimation(.spring(response: 0.4)) {
-                        analysisResult = analysis
 
-                        // Debug logging
-                        print("📊 Analysis received:")
-                        print("  - Type: \(analysis.type)")
-                        print("  - Color: \(analysis.color)")
-                        print("  - item_count: \(analysis.item_count ?? 0)")
-                        print("  - all_items: \(analysis.all_items?.count ?? 0) items")
+                // Get image URL (prefer extracted, fallback to original)
+                let imageUrl = analysis.extracted_image_url ?? analysis.original_image_url ?? ""
 
-                        // Check if multiple items detected
-                        if let allItemsData = analysis.all_items, !allItemsData.isEmpty {
-                            allItems = allItemsData
-                            print("✅ Detected \(allItemsData.count) items!")
-                            print("  Items: \(allItemsData.map { "\($0.color) \($0.type)" })")
-                        } else {
-                            allItems = [analysis]
-                            print("ℹ️  Single item mode")
-                        }
+                print("✅ Analysis complete: \(analysis.type)")
+                print("📸 Image URL: \(imageUrl)")
 
-                        isAnalyzing = false
-                    }
-                }
+                // Create real item with analysis data
+                let realItem = ClothingItem(
+                    id: placeholderId,  // Same ID to replace placeholder
+                    imagePath: imageUrl,
+                    type: analysis.type,
+                    color: analysis.color,
+                    pattern: analysis.pattern,
+                    style: analysis.style,
+                    season: analysis.season,
+                    pairsWellWith: analysis.pairs_well_with,
+                    confidence: analysis.confidence,
+                    isProcessing: false
+                )
+
+                // Update the placeholder with real data
+                wardrobeVM.updateItem(placeholderId, with: realItem)
+
+                print("💾 Item updated in closet!")
+
             } catch {
-                await MainActor.run {
-                    errorMessage = "Failed to analyze: \(error.localizedDescription)"
-                    showingError = true
-                    isAnalyzing = false
-                }
+                print("❌ Analysis failed: \(error)")
+                // Remove the placeholder on error
+                wardrobeVM.deleteItem(placeholder)
             }
-        }
-    }
-
-    func saveToWardrobe() {
-        guard let imageData = selectedImage?.jpegData(compressionQuality: 0.8) else {
-            return
-        }
-
-        // Save ALL detected items
-        let itemsToSave = allItems.isEmpty ? (analysisResult.map { [$0] } ?? []) : allItems
-
-        itemsSaved = 0
-
-        for itemAnalysis in itemsToSave {
-            // Create ClothingItem from each analysis
-            let item = ClothingItem(
-                imagePath: "",
-                type: itemAnalysis.type,
-                color: itemAnalysis.color,
-                pattern: itemAnalysis.pattern,
-                style: itemAnalysis.style,
-                season: itemAnalysis.season,
-                pairsWellWith: itemAnalysis.pairs_well_with,
-                confidence: itemAnalysis.confidence
-            )
-
-            // Save to wardrobe
-            wardrobeVM.addItem(item, imageData: imageData)
-            itemsSaved += 1
-        }
-
-        withAnimation(.spring(response: 0.3)) {
-            showingSaveSuccess = true
-        }
-
-        // Close sheet and reset after 1.5 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            dismiss()
         }
     }
 }
@@ -665,41 +436,65 @@ struct WardrobeView: View {
 
 struct WardrobeCard: View {
     let item: ClothingItem
+    @State private var itemImage: UIImage? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Image Container with gradient background
+            // Image Container with actual image or gradient background
             ZStack {
-                LinearGradient(
-                    colors: [
-                        Color(hex: "6366F1").opacity(0.08),
-                        Color(hex: "8B5CF6").opacity(0.05)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-
-                Image(systemName: iconForType(item.type))
-                    .font(.system(size: 56, weight: .ultraLight))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color(hex: "6366F1"), Color(hex: "8B5CF6")],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                if let image = itemImage {
+                    // Display actual clothing image (background removed)
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: 160)
+                        .background(Color.white)
+                } else {
+                    // Fallback gradient + icon while loading
+                    LinearGradient(
+                        colors: [
+                            Color(hex: "6366F1").opacity(0.08),
+                            Color(hex: "8B5CF6").opacity(0.05)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     )
+
+                    if item.isProcessing {
+                        // Show loading indicator
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: Color(hex: "6366F1")))
+                                .scaleEffect(1.5)
+
+                            Text("AI Analyzing...")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(Color(hex: "6366F1"))
+                        }
+                    } else {
+                        Image(systemName: iconForType(item.type))
+                            .font(.system(size: 56, weight: .ultraLight))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [Color(hex: "6366F1"), Color(hex: "8B5CF6")],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    }
+                }
             }
             .frame(height: 160)
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
 
             // Info Section
             VStack(alignment: .leading, spacing: 6) {
-                Text(item.displayName)
+                Text(item.isProcessing ? "Processing..." : item.displayName)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.primary)
+                    .foregroundColor(item.isProcessing ? .secondary : .primary)
                     .lineLimit(1)
 
-                Text(item.style)
+                Text(item.isProcessing ? "AI is analyzing" : item.style)
                     .font(.system(size: 14))
                     .foregroundColor(.secondary)
                     .lineLimit(1)
@@ -710,7 +505,45 @@ struct WardrobeCard: View {
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
-        .shadow(color: Color(hex: "6366F1").opacity(0.1), radius: 20, x: 0, y: 8)
+        .shadow(color: Color(hex: "6366F1").opacity(item.isProcessing ? 0.2 : 0.1), radius: 20, x: 0, y: 8)
+        .task(id: item.id) {
+            // Load image when card appears or when item updates
+            if !item.isProcessing && !item.imagePath.isEmpty {
+                print("🔄 Loading image for: \(item.displayName), URL: \(item.imagePath)")
+                loadImage()
+            } else if item.imagePath.isEmpty {
+                print("⚠️  No image path for: \(item.displayName)")
+            }
+        }
+        .onChange(of: item.imagePath) { oldValue, newValue in
+            // Reload when URL changes (placeholder -> real item)
+            if !newValue.isEmpty && !item.isProcessing {
+                print("🔄 Image path changed, reloading: \(item.displayName)")
+                loadImage()
+            }
+        }
+    }
+
+    func loadImage() {
+        Task {
+            // Load from Tigris URL (stored in imagePath)
+            guard !item.imagePath.isEmpty, let url = URL(string: item.imagePath) else {
+                print("No image URL for \(item.displayName)")
+                return
+            }
+
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                if let image = UIImage(data: data) {
+                    await MainActor.run {
+                        self.itemImage = image
+                    }
+                    print("✅ Loaded image from Tigris: \(item.displayName)")
+                }
+            } catch {
+                print("❌ Failed to load image from \(url): \(error)")
+            }
+        }
     }
 
     func iconForType(_ type: String) -> String {

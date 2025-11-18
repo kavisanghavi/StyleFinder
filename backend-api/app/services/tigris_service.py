@@ -215,7 +215,7 @@ class TigrisService:
                 timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
                 key = f"images/shared/{timestamp}-{filename}"
 
-            # Upload
+            # Upload (no ACL needed with presigned URLs)
             self.s3_client.put_object(
                 Bucket=self.bucket,
                 Key=key,
@@ -226,8 +226,15 @@ class TigrisService:
                 }
             )
 
-            # Generate URL
-            url = f"{settings.TIGRIS_ENDPOINT}/{self.bucket}/{key}"
+            # Generate presigned URL (valid for 7 days)
+            url = self.s3_client.generate_presigned_url(
+                'get_object',
+                Params={
+                    'Bucket': self.bucket,
+                    'Key': key
+                },
+                ExpiresIn=604800  # 7 days in seconds
+            )
 
             logger.info(f"✅ Image uploaded successfully ({len(image_bytes)} bytes)")
 
