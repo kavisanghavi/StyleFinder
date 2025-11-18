@@ -2,7 +2,7 @@
 //  ContentView.swift
 //  ClosetAI
 //
-//  Main app interface with tabs for different features
+//  Modern, polished UI with beautiful design
 //
 
 import SwiftUI
@@ -12,34 +12,31 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            // Home/Scan Tab
             ScanView()
                 .tabItem {
                     Label("Scan", systemImage: "camera.fill")
                 }
                 .tag(0)
 
-            // Wardrobe Tab
             WardrobeView()
                 .tabItem {
                     Label("Wardrobe", systemImage: "tshirt.fill")
                 }
                 .tag(1)
 
-            // Outfit Generator Tab
             OutfitGeneratorView()
                 .tabItem {
                     Label("Outfits", systemImage: "sparkles")
                 }
                 .tag(2)
 
-            // Settings Tab
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gear")
                 }
                 .tag(3)
         }
+        .accentColor(.purple)
     }
 }
 
@@ -49,110 +46,197 @@ struct ScanView: View {
     @State private var showingImagePicker = false
     @State private var selectedImage: UIImage?
     @State private var isAnalyzing = false
-    @State private var analysisResult: String = ""
+    @State private var analysisResult: ClothingAnalysis?
     @State private var showingError = false
     @State private var errorMessage = ""
 
     var body: some View {
         NavigationView {
-            VStack(spacing: 20) {
-                // Header
-                VStack(spacing: 8) {
-                    Image(systemName: "camera.viewfinder")
-                        .font(.system(size: 60))
-                        .foregroundColor(.blue)
+            ZStack {
+                // Background gradient
+                LinearGradient(
+                    colors: [Color.blue.opacity(0.1), Color.purple.opacity(0.1)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
 
-                    Text("AI Closet Scanner")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Hero Section
+                        VStack(spacing: 12) {
+                            ZStack {
+                                Circle()
+                                    .fill(LinearGradient(
+                                        colors: [.blue, .purple],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ))
+                                    .frame(width: 100, height: 100)
+                                    .shadow(color: .purple.opacity(0.3), radius: 20, y: 10)
 
-                    Text("Scan your clothing items with AI")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.top, 40)
+                                Image(systemName: "camera.fill")
+                                    .font(.system(size: 45))
+                                    .foregroundColor(.white)
+                            }
+                            .padding(.top, 20)
 
-                Spacer()
+                            Text("AI Closet Scanner")
+                                .font(.system(size: 32, weight: .bold, design: .rounded))
+                                .foregroundStyle(LinearGradient(
+                                    colors: [.blue, .purple],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ))
 
-                // Image Preview
-                if let image = selectedImage {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxHeight: 300)
-                        .cornerRadius(12)
-                        .shadow(radius: 5)
-                        .padding()
-                } else {
-                    VStack(spacing: 16) {
-                        Image(systemName: "photo.on.rectangle.angled")
-                            .font(.system(size: 80))
-                            .foregroundColor(.gray.opacity(0.5))
-
-                        Text("No image selected")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxHeight: 300)
-                }
-
-                // Analysis Result
-                if !analysisResult.isEmpty {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Analysis Results")
-                                .font(.headline)
-
-                            Text(analysisResult)
-                                .font(.body)
-                                .padding()
-                                .background(Color.blue.opacity(0.1))
-                                .cornerRadius(8)
+                            Text("Powered by Claude AI")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
                         }
-                        .padding()
-                    }
-                    .frame(maxHeight: 200)
-                }
 
-                Spacer()
+                        // Image Preview Card
+                        VStack(spacing: 16) {
+                            if let image = selectedImage {
+                                ZStack(alignment: .topTrailing) {
+                                    Image(uiImage: image)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(height: 280)
+                                        .frame(maxWidth: .infinity)
+                                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                                        .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
 
-                // Action Buttons
-                VStack(spacing: 12) {
-                    Button(action: {
-                        showingImagePicker = true
-                    }) {
-                        Label("Select Photo", systemImage: "photo.fill")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
-                            .font(.headline)
-                    }
+                                    // Remove button
+                                    Button(action: { selectedImage = nil; analysisResult = nil }) {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.title2)
+                                            .foregroundColor(.white)
+                                            .background(Circle().fill(Color.black.opacity(0.5)))
+                                    }
+                                    .padding(12)
+                                }
+                                .padding(.horizontal)
+                            } else {
+                                Button(action: { showingImagePicker = true }) {
+                                    VStack(spacing: 16) {
+                                        ZStack {
+                                            RoundedRectangle(cornerRadius: 20)
+                                                .fill(Color.gray.opacity(0.1))
+                                                .frame(height: 280)
 
-                    if selectedImage != nil {
-                        Button(action: analyzeImage) {
-                            HStack {
-                                if isAnalyzing {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                } else {
-                                    Label("Analyze with AI", systemImage: "sparkles")
+                                            VStack(spacing: 12) {
+                                                Image(systemName: "photo.on.rectangle.angled")
+                                                    .font(.system(size: 60))
+                                                    .foregroundStyle(LinearGradient(
+                                                        colors: [.blue, .purple],
+                                                        startPoint: .topLeading,
+                                                        endPoint: .bottomTrailing
+                                                    ))
+
+                                                Text("Tap to select a photo")
+                                                    .font(.headline)
+                                                    .foregroundColor(.primary)
+
+                                                Text("Choose a clothing item to analyze")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.horizontal)
+                            }
+                        }
+
+                        // Analysis Results
+                        if let result = analysisResult {
+                            VStack(alignment: .leading, spacing: 16) {
+                                HStack {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                    Text("Analysis Complete")
+                                        .font(.headline)
+                                }
+                                .padding(.horizontal)
+
+                                VStack(spacing: 12) {
+                                    AnalysisRow(icon: "tag.fill", label: "Type", value: result.type.capitalized, color: .blue)
+                                    AnalysisRow(icon: "paintpalette.fill", label: "Color", value: result.color.capitalized, color: .orange)
+                                    AnalysisRow(icon: "square.grid.2x2.fill", label: "Pattern", value: result.pattern.capitalized, color: .purple)
+                                    AnalysisRow(icon: "star.fill", label: "Style", value: result.style.capitalized, color: .pink)
+                                    AnalysisRow(icon: "calendar.circle.fill", label: "Seasons", value: result.season.joined(separator: ", "), color: .green)
+                                    AnalysisRow(icon: "sparkles", label: "Confidence", value: "\(Int(result.confidence * 100))%", color: .yellow)
+                                }
+                                .padding()
+                                .background(Color(.systemBackground))
+                                .cornerRadius(16)
+                                .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
+                                .padding(.horizontal)
+
+                                if !result.pairs_well_with.isEmpty {
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        Text("Pairs well with")
+                                            .font(.headline)
+                                            .padding(.horizontal)
+
+                                        ScrollView(.horizontal, showsIndicators: false) {
+                                            HStack(spacing: 12) {
+                                                ForEach(result.pairs_well_with, id: \.self) { item in
+                                                    Text(item.capitalized)
+                                                        .font(.subheadline)
+                                                        .padding(.horizontal, 16)
+                                                        .padding(.vertical, 8)
+                                                        .background(LinearGradient(
+                                                            colors: [.blue.opacity(0.2), .purple.opacity(0.2)],
+                                                            startPoint: .leading,
+                                                            endPoint: .trailing
+                                                        ))
+                                                        .cornerRadius(20)
+                                                }
+                                            }
+                                            .padding(.horizontal)
+                                        }
+                                    }
                                 }
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.green)
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
-                            .font(.headline)
+                            .padding(.vertical)
                         }
-                        .disabled(isAnalyzing)
+
+                        // Action Buttons
+                        if selectedImage != nil {
+                            Button(action: analyzeImage) {
+                                HStack(spacing: 12) {
+                                    if isAnalyzing {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    } else {
+                                        Image(systemName: "sparkles")
+                                            .font(.title3)
+                                        Text("Analyze with AI")
+                                            .fontWeight(.semibold)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(LinearGradient(
+                                    colors: [.blue, .purple],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ))
+                                .foregroundColor(.white)
+                                .cornerRadius(16)
+                                .shadow(color: .purple.opacity(0.3), radius: 10, y: 5)
+                            }
+                            .disabled(isAnalyzing || analysisResult != nil)
+                            .padding(.horizontal)
+                            .padding(.bottom, 20)
+                        }
                     }
+                    .padding(.vertical)
                 }
-                .padding()
             }
-            .navigationTitle("Scan")
+            .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingImagePicker) {
                 ImagePicker(image: $selectedImage)
             }
@@ -173,22 +257,12 @@ struct ScanView: View {
         }
 
         isAnalyzing = true
-        analysisResult = ""
 
         Task {
             do {
                 let analysis = try await APIClient.shared.analyzeClothing(imageData: imageData)
-
                 await MainActor.run {
-                    analysisResult = """
-                    Type: \(analysis.type)
-                    Color: \(analysis.color)
-                    Pattern: \(analysis.pattern)
-                    Style: \(analysis.style)
-                    Seasons: \(analysis.season.joined(separator: ", "))
-                    Pairs well with: \(analysis.pairs_well_with.joined(separator: ", "))
-                    Confidence: \(Int(analysis.confidence * 100))%
-                    """
+                    analysisResult = analysis
                     isAnalyzing = false
                 }
             } catch {
@@ -202,30 +276,68 @@ struct ScanView: View {
     }
 }
 
+struct AnalysisRow: View {
+    let icon: String
+    let label: String
+    let value: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(color)
+                .frame(width: 30)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text(value)
+                    .font(.body)
+                    .fontWeight(.medium)
+            }
+
+            Spacer()
+        }
+    }
+}
+
 // MARK: - Wardrobe View
 
 struct WardrobeView: View {
     @State private var items: [ClothingItem] = ClothingItem.samples
 
     let columns = [
-        GridItem(.adaptive(minimum: 150))
+        GridItem(.flexible(), spacing: 16),
+        GridItem(.flexible(), spacing: 16)
     ]
 
     var body: some View {
         NavigationView {
-            ScrollView {
-                LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(items) { item in
-                        WardrobeItemCard(item: item)
+            ZStack {
+                Color(.systemGroupedBackground).ignoresSafeArea()
+
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: 16) {
+                        ForEach(items) { item in
+                            WardrobeItemCard(item: item)
+                        }
                     }
+                    .padding()
                 }
-                .padding()
             }
             .navigationTitle("My Wardrobe")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {}) {
                         Image(systemName: "plus.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(LinearGradient(
+                                colors: [.blue, .purple],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ))
                     }
                 }
             }
@@ -237,35 +349,51 @@ struct WardrobeItemCard: View {
     let item: ClothingItem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Placeholder image
+        VStack(alignment: .leading, spacing: 0) {
+            // Image area
             ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.gray.opacity(0.2))
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(LinearGradient(
+                        colors: [Color.blue.opacity(0.1), Color.purple.opacity(0.1)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
                     .aspectRatio(1, contentMode: .fit)
 
                 Image(systemName: iconForType(item.type))
                     .font(.system(size: 50))
-                    .foregroundColor(.blue)
+                    .foregroundStyle(LinearGradient(
+                        colors: [.blue, .purple],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            // Info section
+            VStack(alignment: .leading, spacing: 6) {
                 Text(item.displayName)
                     .font(.headline)
                     .lineLimit(1)
+                    .foregroundColor(.primary)
 
-                Text(item.style)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                HStack(spacing: 8) {
+                    Text(item.style)
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(6)
 
-                Text(item.seasonEmojis)
-                    .font(.caption)
+                    Text(item.seasonEmojis)
+                        .font(.caption)
+                }
             }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.systemBackground))
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(radius: 2)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.08), radius: 8, y: 4)
     }
 
     func iconForType(_ type: String) -> String {
@@ -285,90 +413,186 @@ struct WardrobeItemCard: View {
 struct OutfitGeneratorView: View {
     @State private var occasion = "Work"
     @State private var isGenerating = false
-    @State private var generatedOutfit: String = ""
+    @State private var generatedOutfit: OutfitSuggestion?
 
     let occasions = ["Work", "Casual", "Date Night", "Gym", "Formal Event", "Party"]
 
     var body: some View {
         NavigationView {
-            VStack(spacing: 20) {
-                // Header
-                VStack(spacing: 8) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 50))
-                        .foregroundColor(.purple)
+            ZStack {
+                LinearGradient(
+                    colors: [Color.purple.opacity(0.1), Color.pink.opacity(0.1)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
 
-                    Text("Outfit Generator")
-                        .font(.title)
-                        .fontWeight(.bold)
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Hero Section
+                        VStack(spacing: 12) {
+                            ZStack {
+                                Circle()
+                                    .fill(LinearGradient(
+                                        colors: [.purple, .pink],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ))
+                                    .frame(width: 100, height: 100)
+                                    .shadow(color: .purple.opacity(0.3), radius: 20, y: 10)
 
-                    Text("Let AI style your perfect outfit")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.top, 20)
+                                Image(systemName: "wand.and.stars")
+                                    .font(.system(size: 45))
+                                    .foregroundColor(.white)
+                            }
+                            .padding(.top, 20)
 
-                // Occasion Picker
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Occasion")
-                        .font(.headline)
-                        .padding(.leading)
+                            Text("Outfit Generator")
+                                .font(.system(size: 32, weight: .bold, design: .rounded))
+                                .foregroundStyle(LinearGradient(
+                                    colors: [.purple, .pink],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ))
 
-                    Picker("Occasion", selection: $occasion) {
-                        ForEach(occasions, id: \.self) { occasion in
-                            Text(occasion).tag(occasion)
+                            Text("AI-powered styling")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
                         }
-                    }
-                    .pickerStyle(.wheel)
-                    .frame(height: 150)
-                }
 
-                // Generate Button
-                Button(action: generateOutfit) {
-                    HStack {
-                        if isGenerating {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        } else {
-                            Label("Generate Outfit", systemImage: "wand.and.stars")
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.purple)
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
-                    .font(.headline)
-                }
-                .disabled(isGenerating)
-                .padding(.horizontal)
-
-                // Result
-                if !generatedOutfit.isEmpty {
-                    ScrollView {
+                        // Occasion Selector
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Your Outfit")
+                            Text("Select Occasion")
                                 .font(.headline)
+                                .padding(.horizontal)
 
-                            Text(generatedOutfit)
-                                .font(.body)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(occasions, id: \.self) { occ in
+                                        OccasionButton(
+                                            title: occ,
+                                            isSelected: occasion == occ,
+                                            action: { occasion = occ }
+                                        )
+                                    }
+                                }
+                                .padding(.horizontal)
+                            }
+                        }
+
+                        // Generate Button
+                        Button(action: generateOutfit) {
+                            HStack(spacing: 12) {
+                                if isGenerating {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                } else {
+                                    Image(systemName: "wand.and.stars")
+                                        .font(.title3)
+                                    Text("Generate Outfit")
+                                        .fontWeight(.semibold)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(LinearGradient(
+                                colors: [.purple, .pink],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            ))
+                            .foregroundColor(.white)
+                            .cornerRadius(16)
+                            .shadow(color: .purple.opacity(0.3), radius: 10, y: 5)
+                        }
+                        .disabled(isGenerating)
+                        .padding(.horizontal)
+
+                        // Results
+                        if let outfit = generatedOutfit {
+                            VStack(alignment: .leading, spacing: 16) {
+                                Text("Your Perfect Outfit")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .padding(.horizontal)
+
+                                // Items
+                                VStack(spacing: 12) {
+                                    ForEach(outfit.items, id: \.id) { item in
+                                        HStack(spacing: 12) {
+                                            Circle()
+                                                .fill(LinearGradient(
+                                                    colors: [.purple.opacity(0.3), .pink.opacity(0.3)],
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                ))
+                                                .frame(width: 50, height: 50)
+                                                .overlay(
+                                                    Text(item.type.prefix(1).uppercased())
+                                                        .font(.title3)
+                                                        .fontWeight(.bold)
+                                                        .foregroundColor(.purple)
+                                                )
+
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(item.type.capitalized)
+                                                    .font(.headline)
+                                                Text(item.reasoning)
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                                    .lineLimit(2)
+                                            }
+                                            Spacer()
+                                        }
+                                        .padding()
+                                        .background(Color(.systemBackground))
+                                        .cornerRadius(12)
+                                    }
+                                }
+                                .padding(.horizontal)
+
+                                // Reasoning
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Label("Why this works", systemImage: "lightbulb.fill")
+                                        .font(.headline)
+                                        .foregroundColor(.purple)
+
+                                    Text(outfit.reasoning)
+                                        .font(.body)
+                                        .foregroundColor(.primary)
+                                }
                                 .padding()
                                 .background(Color.purple.opacity(0.1))
-                                .cornerRadius(8)
-                        }
-                        .padding()
-                    }
-                }
+                                .cornerRadius(12)
+                                .padding(.horizontal)
 
-                Spacer()
+                                // Style Tips
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Label("Style Tips", systemImage: "star.fill")
+                                        .font(.headline)
+                                        .foregroundColor(.pink)
+
+                                    Text(outfit.styleTips)
+                                        .font(.body)
+                                        .foregroundColor(.primary)
+                                }
+                                .padding()
+                                .background(Color.pink.opacity(0.1))
+                                .cornerRadius(12)
+                                .padding(.horizontal)
+                            }
+                            .padding(.vertical)
+                        }
+                    }
+                    .padding(.vertical)
+                }
             }
-            .navigationTitle("Outfit Generator")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 
     func generateOutfit() {
         isGenerating = true
-        generatedOutfit = ""
+        generatedOutfit = nil
 
         Task {
             do {
@@ -379,22 +603,37 @@ struct OutfitGeneratorView: View {
                 )
 
                 await MainActor.run {
-                    var result = "📋 Items:\n"
-                    for item in outfit.items {
-                        result += "• \(item.type)\n"
-                    }
-                    result += "\n💭 Reasoning:\n\(outfit.reasoning)\n"
-                    result += "\n✨ Style Tips:\n\(outfit.styleTips)"
-
-                    generatedOutfit = result
+                    generatedOutfit = outfit
                     isGenerating = false
                 }
             } catch {
                 await MainActor.run {
-                    generatedOutfit = "Error: \(error.localizedDescription)"
                     isGenerating = false
                 }
             }
+        }
+    }
+}
+
+struct OccasionButton: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(isSelected ? .semibold : .regular)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(
+                    isSelected ?
+                    LinearGradient(colors: [.purple, .pink], startPoint: .leading, endPoint: .trailing) :
+                    LinearGradient(colors: [Color(.systemGray5)], startPoint: .leading, endPoint: .trailing)
+                )
+                .foregroundColor(isSelected ? .white : .primary)
+                .cornerRadius(20)
         }
     }
 }
@@ -404,27 +643,37 @@ struct OutfitGeneratorView: View {
 struct SettingsView: View {
     @State private var enableCloudBackup = false
     @State private var enableVoiceRecommendations = true
-    @State private var backendURL = "http://localhost:8000"
-    @State private var showingURLEditor = false
 
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("AI Features")) {
-                    Toggle("Cloud Backup", isOn: $enableCloudBackup)
-                    Toggle("Voice Recommendations", isOn: $enableVoiceRecommendations)
+                Section {
+                    VStack(spacing: 12) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 50))
+                            .foregroundStyle(LinearGradient(
+                                colors: [.blue, .purple],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ))
+                        Text("AI Closet Scanner")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        Text("Version 1.0.0")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
                 }
+                .listRowBackground(Color.clear)
 
-                Section(header: Text("Backend Configuration")) {
-                    HStack {
-                        Text("Backend URL")
-                        Spacer()
-                        Button(action: { showingURLEditor = true }) {
-                            Text(backendURL)
-                                .font(.caption)
-                                .foregroundColor(.blue)
-                                .lineLimit(1)
-                        }
+                Section(header: Text("AI Features")) {
+                    Toggle(isOn: $enableCloudBackup) {
+                        Label("Cloud Backup", systemImage: "cloud.fill")
+                    }
+                    Toggle(isOn: $enableVoiceRecommendations) {
+                        Label("Voice Recommendations", systemImage: "speaker.wave.2.fill")
                     }
                 }
 
@@ -433,38 +682,29 @@ struct SettingsView: View {
                         Image(systemName: "lock.shield.fill")
                             .foregroundColor(.green)
                         Text("AES-256-GCM Encryption")
+                        Spacer()
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
                     }
 
                     HStack {
                         Image(systemName: "key.fill")
                             .foregroundColor(.orange)
                         Text("Keychain Storage")
+                        Spacer()
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
                     }
                 }
 
-                Section(header: Text("About")) {
-                    HStack {
-                        Text("Version")
-                        Spacer()
-                        Text("1.0.0")
-                            .foregroundColor(.secondary)
-                    }
-
-                    HStack {
-                        Text("Powered by")
-                        Spacer()
-                        Text("Claude, ElevenLabs, Gemini")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
+                Section(header: Text("Powered By")) {
+                    Label("Claude (Anthropic)", systemImage: "brain.head.profile")
+                    Label("ElevenLabs", systemImage: "waveform")
+                    Label("Google Gemini", systemImage: "sparkles")
+                    Label("Tigris Storage", systemImage: "cloud.fill")
                 }
             }
             .navigationTitle("Settings")
-            .alert("Backend URL", isPresented: $showingURLEditor) {
-                TextField("URL", text: $backendURL)
-                Button("Save", action: {})
-                Button("Cancel", role: .cancel, action: {})
-            }
         }
     }
 }
