@@ -109,8 +109,8 @@ def deploy_backend(sandbox):
     """Deploy the FastAPI backend in the sandbox."""
     print("\n📁 Uploading backend code...")
 
-    # Get the backend directory
-    backend_dir = Path(__file__).parent / "backend-api"
+    # Get the backend directory (we're already in backend-api/)
+    backend_dir = Path(__file__).parent
 
     if not backend_dir.exists():
         print(f"❌ Backend directory not found: {backend_dir}")
