@@ -116,34 +116,41 @@ def deploy_backend(sandbox):
         print(f"❌ Backend directory not found: {backend_dir}")
         sys.exit(1)
 
-    # Upload application code files one by one
+    # Create necessary directories
+    print("   Creating directories...")
+    sandbox.fs.create_folder("/workspace/app")
+    sandbox.fs.create_folder("/workspace/app/services")
+    sandbox.fs.create_folder("/workspace/app/monitoring")
+    sandbox.fs.create_folder("/workspace/app/static")
+
+    # Upload application code files
     print("   Uploading Python files...")
     app_dir = backend_dir / "app"
-
-    # Create app directory
-    sandbox.process.code_run("mkdir -p /workspace/app/services /workspace/app/monitoring /workspace/app/static")
 
     # Upload all Python files from app/
     for py_file in app_dir.glob("*.py"):
         print(f"   - {py_file.name}")
-        content = py_file.read_text()
-        sandbox.fs.write(f"/workspace/app/{py_file.name}", content)
+        with open(py_file, 'rb') as f:
+            content = f.read()
+        sandbox.fs.upload_file(content, f"/workspace/app/{py_file.name}")
 
     # Upload services directory
     services_dir = app_dir / "services"
     if services_dir.exists():
         for py_file in services_dir.glob("*.py"):
             print(f"   - services/{py_file.name}")
-            content = py_file.read_text()
-            sandbox.fs.write(f"/workspace/app/services/{py_file.name}", content)
+            with open(py_file, 'rb') as f:
+                content = f.read()
+            sandbox.fs.upload_file(content, f"/workspace/app/services/{py_file.name}")
 
     # Upload monitoring directory
     monitoring_dir = app_dir / "monitoring"
     if monitoring_dir.exists():
         for py_file in monitoring_dir.glob("*.py"):
             print(f"   - monitoring/{py_file.name}")
-            content = py_file.read_text()
-            sandbox.fs.write(f"/workspace/app/monitoring/{py_file.name}", content)
+            with open(py_file, 'rb') as f:
+                content = f.read()
+            sandbox.fs.upload_file(content, f"/workspace/app/monitoring/{py_file.name}")
 
     # Upload static files
     static_dir = app_dir / "static"
@@ -151,8 +158,9 @@ def deploy_backend(sandbox):
         for file in static_dir.glob("*"):
             if file.is_file():
                 print(f"   - static/{file.name}")
-                content = file.read_text()
-                sandbox.fs.write(f"/workspace/app/static/{file.name}", content)
+                with open(file, 'rb') as f:
+                    content = f.read()
+                sandbox.fs.upload_file(content, f"/workspace/app/static/{file.name}")
 
     # Create .env file in sandbox
     print("   Creating .env file...")
@@ -168,7 +176,7 @@ ENVIRONMENT=production
 BACKEND_URL=https://preview-{sandbox.id}.daytona.app
 """.strip()
 
-    sandbox.fs.write("/workspace/.env", env_content)
+    sandbox.fs.upload_file(env_content.encode('utf-8'), "/workspace/.env")
 
     print("✅ Backend code deployed!")
 
