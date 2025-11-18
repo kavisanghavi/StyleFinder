@@ -171,21 +171,34 @@ Requirements:
             image = Image.open(io.BytesIO(img_data))
 
             # Build prompt for background removal
-            prompt = f"""Remove the background from this image, keeping only the {subject_description}.
+            prompt = f"""Extract and isolate ONLY the {subject_description} from this image.
 
-CRITICAL REQUIREMENTS:
-- ORIENT THE ITEM CORRECTLY: The clothing item should be displayed UPRIGHT in its natural orientation (as if someone is wearing it standing up)
-- If the input image is sideways or rotated, rotate the item to be vertical/upright in the output
-- PRESERVE THE EXACT ORIGINAL COLORS - do not adjust, enhance, or modify the colors
-- Remove ONLY the background elements (hangers, walls, floor, etc.)
-- Use a transparent or white background
-- DO NOT change the lighting, saturation, hue, or any color properties
-- Keep the exact same fabric texture, patterns, and details
-- Ensure clean edges without artifacts
-- Maintain the original quality and resolution
-- The item should be in PORTRAIT orientation (vertical/tall, not horizontal/wide)
-- Center the item in the frame
-- The item should look IDENTICAL to the original in color and detail, just oriented correctly and without the background"""
+CRITICAL REQUIREMENTS - FOLLOW EXACTLY:
+
+ORIENTATION:
+- Make the clothing item PERFECTLY UPRIGHT and VERTICAL (as if someone is wearing it while standing)
+- The collar/neckline should be at the TOP, bottom hem at BOTTOM
+- If the photo is tilted or sideways, straighten the item to be perfectly vertical
+- NO rotation, NO tilting, PERFECTLY upright
+
+BACKGROUND:
+- Use ONLY a pure white background (#FFFFFF) or transparent
+- DO NOT add frames, borders, shadows, or decorative elements
+- DO NOT add rectangular frames or boxes around the item
+- CLEAN simple background ONLY
+
+COLORS & QUALITY:
+- PRESERVE EXACT ORIGINAL COLORS - do not change, enhance, or adjust
+- DO NOT change lighting, saturation, brightness, or hue
+- Keep exact fabric texture, patterns, and details
+- Maintain original quality and resolution
+
+OUTPUT:
+- ONLY the clothing item on plain white background
+- Portrait orientation (vertical/tall)
+- Center the item
+- Clean edges, no artifacts
+- NO artistic additions, NO frames, NO borders"""
 
             # Generate with new Gemini API
             response = self.client.models.generate_content(
