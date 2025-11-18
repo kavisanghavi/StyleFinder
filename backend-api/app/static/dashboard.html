@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Closet Scanner - Live Metrics Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1e3f 100%);
+            color: white;
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        h1 {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 18px;
+            opacity: 0.8;
+            margin-bottom: 20px;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 8px 16px;
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid rgba(34, 197, 94, 0.5);
+            border-radius: 20px;
+            font-size: 14px;
+            color: #22c55e;
+            margin-top: 10px;
+        }
+
+        .status::before {
+            content: "●";
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin: 40px 0;
+        }
+
+        .metric-card {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 50px rgba(102, 126, 234, 0.3);
+        }
+
+        .metric-label {
+            font-size: 13px;
+            opacity: 0.7;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .metric-value {
+            font-size: 56px;
+            font-weight: 800;
+            margin: 10px 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1;
+        }
+
+        .metric-change {
+            font-size: 14px;
+            opacity: 0.6;
+            margin-top: 8px;
+        }
+
+        .sponsor-section {
+            margin-top: 60px;
+            text-align: center;
+        }
+
+        .sponsor-section h2 {
+            font-size: 24px;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+
+        .sponsor-logos {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 40px;
+        }
+
+        .sponsor-logo {
+            background: white;
+            padding: 16px 28px;
+            border-radius: 12px;
+            font-weight: 700;
+            color: #0a0e27;
+            font-size: 16px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .sponsor-logo:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .recent-calls {
+            margin-top: 50px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 30px;
+        }
+
+        .recent-calls h2 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        .call-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            border-left: 3px solid #667eea;
+        }
+
+        .call-name {
+            font-weight: 600;
+            flex: 1;
+        }
+
+        .call-latency {
+            font-size: 14px;
+            opacity: 0.7;
+            margin: 0 20px;
+        }
+
+        .call-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .call-status.success {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        .call-status.error {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        footer {
+            margin-top: 80px;
+            text-align: center;
+            opacity: 0.6;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 32px;
+            }
+
+            .metric-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .metric-value {
+                font-size: 42px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 AI Closet Scanner</h1>
+            <p class="subtitle">Live Metrics Dashboard</p>
+            <div class="status">System Online</div>
+        </header>
+
+        <div class="metric-grid">
+            <div class="metric-card">
+                <div class="metric-label">Total Requests</div>
+                <div class="metric-value" id="total-requests">0</div>
+                <div class="metric-change">All API calls</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-label">Claude API Calls</div>
+                <div class="metric-value" id="claude-calls">0</div>
+                <div class="metric-change">Fashion analysis & outfits</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-label">ElevenLabs TTS</div>
+                <div class="metric-value" id="elevenlabs-calls">0</div>
+                <div class="metric-change">Voice recommendations</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-label">Nano Banana Images</div>
+                <div class="metric-value" id="nanobanana-calls">0</div>
+                <div class="metric-change">Virtual try-ons generated</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-label">Tigris Uploads</div>
+                <div class="metric-value" id="tigris-uploads">0</div>
+                <div class="metric-change">Files stored in cloud</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-label">Avg Latency</div>
+                <div class="metric-value" id="avg-latency">0<span style="font-size: 24px;">ms</span></div>
+                <div class="metric-change">Response time</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-label">Error Rate</div>
+                <div class="metric-value" id="error-rate">0<span style="font-size: 24px;">%</span></div>
+                <div class="metric-change">System reliability</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-label">Last Request</div>
+                <div class="metric-value" style="font-size: 20px;" id="last-request">Never</div>
+                <div class="metric-change">Most recent activity</div>
+            </div>
+        </div>
+
+        <div class="recent-calls">
+            <h2>📊 Recent API Calls</h2>
+            <div id="recent-calls-container">
+                <p style="opacity: 0.5; text-align: center; padding: 20px;">No calls yet...</p>
+            </div>
+        </div>
+
+        <div class="sponsor-section">
+            <h2>🏆 Powered By Amazing Technologies</h2>
+            <div class="sponsor-logos">
+                <div class="sponsor-logo">🏃 Daytona</div>
+                <div class="sponsor-logo">🤖 Claude (Anthropic)</div>
+                <div class="sponsor-logo">🗣️ ElevenLabs</div>
+                <div class="sponsor-logo">🍌 Nano Banana</div>
+                <div class="sponsor-logo">☁️ Tigris</div>
+                <div class="sponsor-logo">💳 Brex</div>
+                <div class="sponsor-logo">📊 Galileo</div>
+            </div>
+        </div>
+
+        <footer>
+            <p>AI Closet Scanner • Built for Hackathon 2024 • Hosted on Daytona</p>
+            <p style="margin-top: 10px;">Made with ❤️ and AI</p>
+        </footer>
+    </div>
+
+    <script>
+        // Fetch and update metrics every 2 seconds
+        async function updateMetrics() {
+            try {
+                const response = await fetch('/metrics');
+                const data = await response.json();
+
+                // Update metric values
+                document.getElementById('total-requests').textContent = data.total_requests || 0;
+                document.getElementById('claude-calls').textContent = data.claude_calls || 0;
+                document.getElementById('elevenlabs-calls').textContent = data.elevenlabs_calls || 0;
+                document.getElementById('nanobanana-calls').textContent = data.nanobanana_calls || 0;
+                document.getElementById('tigris-uploads').textContent = data.tigris_uploads || 0;
+
+                // Calculate average latency in milliseconds
+                const avgLatency = Math.round((data.average_latency || 0) * 1000);
+                document.getElementById('avg-latency').innerHTML =
+                    `${avgLatency}<span style="font-size: 24px;">ms</span>`;
+
+                // Calculate error rate
+                const totalRequests = data.total_requests || 0;
+                const errors = data.errors || 0;
+                const errorRate = totalRequests > 0 ? ((errors / totalRequests) * 100).toFixed(1) : 0;
+                document.getElementById('error-rate').innerHTML =
+                    `${errorRate}<span style="font-size: 24px;">%</span>`;
+
+                // Update last request time
+                if (data.last_request_time) {
+                    const lastTime = new Date(data.last_request_time);
+                    const now = new Date();
+                    const diff = Math.floor((now - lastTime) / 1000);
+
+                    let timeString;
+                    if (diff < 60) {
+                        timeString = `${diff}s ago`;
+                    } else if (diff < 3600) {
+                        timeString = `${Math.floor(diff / 60)}m ago`;
+                    } else {
+                        timeString = lastTime.toLocaleTimeString();
+                    }
+
+                    document.getElementById('last-request').textContent = timeString;
+                } else {
+                    document.getElementById('last-request').textContent = 'Never';
+                }
+
+                // Update recent calls
+                if (data.recent_calls && data.recent_calls.length > 0) {
+                    const container = document.getElementById('recent-calls-container');
+                    container.innerHTML = data.recent_calls.slice().reverse().map(call => {
+                        const latency = Math.round(call.latency * 1000);
+                        const statusClass = call.success ? 'success' : 'error';
+                        const statusText = call.success ? '✓ Success' : '✗ Error';
+
+                        return `
+                            <div class="call-item">
+                                <div class="call-name">${call.name}</div>
+                                <div class="call-latency">${latency}ms</div>
+                                <div class="call-status ${statusClass}">${statusText}</div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+            } catch (error) {
+                console.error('Failed to fetch metrics:', error);
+            }
+        }
+
+        // Update metrics immediately and then every 2 seconds
+        updateMetrics();
+        setInterval(updateMetrics, 2000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,211 @@
+# =============================================
+# AI Closet Scanner - Git Ignore File
+# =============================================
+
+# ==================== Python ====================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+
+# ==================== Environment Variables ====================
+.env
+.env.local
+.env.*.local
+*.env
+
+# NEVER commit API keys!
+*_API_KEY*
+*_SECRET*
+*credentials*
+
+# ==================== macOS ====================
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Icon must end with two \r
+Icon
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# ==================== iOS / Xcode ====================
+# Xcode
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+*.xcuserstate
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# CocoaPods
+Pods/
+Podfile.lock
+
+# Carthage
+Carthage/Build/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# ==================== Logs ====================
+*.log
+logs/
+*.log.*
+
+# ==================== Temporary Files ====================
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# ==================== Database ====================
+*.db
+*.sqlite
+*.sqlite3
+
+# ==================== Backup Files ====================
+*.bak
+*.backup
+
+# ==================== Test Coverage ====================
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# ==================== Jupyter Notebook ====================
+.ipynb_checkpoints
+
+# ==================== IDEs ====================
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# ==================== Documentation ====================
+# Allow markdown files
+!*.md
+!README.md
+!docs/**/*.md
+
+# ==================== Cloud & Deployment ====================
+.daytona/workspace_state.json
+.daytona/logs/
+
+# ==================== User Data (Privacy) ====================
+# Never commit user data or encrypted backups
+user_data/
+backups/
+encrypted_*
+*.encrypted
+
+# ==================== Images (Large Files) ====================
+# Ignore sample/test images (add real image paths)
+sample_images/
+test_images/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.heic
+
+# Exception: Keep asset images
+!ClosetAI/Assets.xcassets/**
+
+# ==================== Audio Files ====================
+*.mp3
+*.wav
+*.m4a
+audio_cache/
+
+# ==================== Node Modules (if using any JS tools) ====================
+node_modules/
+package-lock.json
+yarn.lock
+
+# ==================== Docker ====================
+.dockerignore
+docker-compose.override.yml
+
+# ==================== Misc ====================
+.sass-cache/
+*.pid
+*.seed
+*.pid.lock

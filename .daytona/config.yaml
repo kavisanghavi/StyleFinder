@@ -1,0 +1,76 @@
+# ============================================
+# Daytona Workspace Configuration
+# AI Closet Scanner Backend API
+# ============================================
+
+workspace:
+  name: closet-scanner-backend
+  description: "AI-powered wardrobe management backend API"
+  template: python-3.11
+
+runtime:
+  type: container
+  image: python:3.11-slim
+
+# Exposed ports
+ports:
+  - 8000  # FastAPI server
+
+# Environment variables (use secrets in production)
+environment:
+  # Note: Set these in Daytona dashboard as secrets
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+  ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY}
+  GEMINI_API_KEY: ${GEMINI_API_KEY}
+  TIGRIS_ACCESS_KEY: ${TIGRIS_ACCESS_KEY}
+  TIGRIS_SECRET_KEY: ${TIGRIS_SECRET_KEY}
+  GALILEO_API_KEY: ${GALILEO_API_KEY}
+  BREX_API_KEY: ${BREX_API_KEY}
+
+  # Application config
+  ENVIRONMENT: production
+  BACKEND_URL: ${DAYTONA_WORKSPACE_URL}
+
+  # Python
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+# Startup commands
+commands:
+  # Install dependencies
+  setup: |
+    cd backend-api
+    pip install --upgrade pip
+    pip install -r requirements.txt
+    echo "✅ Dependencies installed"
+
+  # Start the FastAPI server
+  start: |
+    cd backend-api
+    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Run in production mode (no reload)
+  start-prod: |
+    cd backend-api
+    uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+
+  # Test the API
+  test: |
+    cd backend-api
+    curl http://localhost:8000/health
+
+  # View logs
+  logs: |
+    tail -f /var/log/uvicorn.log
+
+# Volume mounts (optional)
+volumes:
+  - type: bind
+    source: ./backend-api
+    target: /workspace/backend-api
+
+# Resources
+resources:
+  cpu: "2"
+  memory: "4Gi"
+  storage: "20Gi"
