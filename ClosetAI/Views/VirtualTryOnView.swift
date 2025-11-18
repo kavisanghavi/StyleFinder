@@ -258,20 +258,26 @@ struct VirtualTryOnView: View {
                     }
                 }
 
-                // Download and play audio from URL
-                if let audioUrlString = audioUrl, let url = URL(string: audioUrlString) {
-                    print("🔊 Downloading audio from: \(audioUrlString)")
+                // Generate and play audio with ElevenLabs directly
+                if let statement = statement, !statement.isEmpty {
                     do {
-                        let (audioData, _) = try await URLSession.shared.data(from: url)
-                        print("✅ Audio downloaded (\(audioData.count) bytes), playing...")
+                        print("🔊 Generating audio with ElevenLabs...")
+                        let voices = try await ElevenLabsTTS.shared.listVoices(apiKey: elevenLabsApiKey)
+                        let voiceId = voices.first?.id ?? "pNInz6obpgDQGcFmaJgB"
+                        print("🎤 Using voice: \(voiceId)")
+
+                        let audioData = try await ElevenLabsTTS.shared.synthesize(
+                            text: statement,
+                            voiceId: voiceId,
+                            apiKey: elevenLabsApiKey
+                        )
+                        print("✅ Audio generated (\(audioData.count) bytes), playing...")
                         await MainActor.run {
                             playAudio(data: audioData)
                         }
                     } catch {
-                        print("❌ Failed to download/play audio: \(error)")
+                        print("❌ Failed to generate/play audio: \(error)")
                     }
-                } else {
-                    print("⚠️  No audio URL received from backend")
                 }
             } catch {
                 await MainActor.run {
