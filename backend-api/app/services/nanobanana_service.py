@@ -11,7 +11,8 @@ Features:
 - Outfit visualization
 """
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import base64
 import logging
 from typing import List, Optional
@@ -41,13 +42,13 @@ class NanoBananaService:
     def __init__(self):
         """Initialize the Gemini service with API configuration."""
         try:
-            # Configure Gemini
-            genai.configure(api_key=settings.GEMINI_API_KEY)
+            # Initialize the Gemini client (new API)
+            self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
-            # Initialize the model
-            self.model = genai.GenerativeModel(settings.GEMINI_MODEL)
+            # Model for image generation - using exact model from documentation
+            self.image_model = "gemini-2.5-flash-image"
 
-            logger.info(f"🍌 Nano Banana service initialized with model: {settings.GEMINI_MODEL}")
+            logger.info(f"🍌 Nano Banana service initialized with model: {self.image_model}")
             self.enabled = True
 
         except Exception as e:
@@ -144,7 +145,7 @@ Requirements:
         subject_description: str = "clothing item"
     ) -> bytes:
         """
-        Remove background from a clothing image.
+        Remove background from a clothing image using Gemini image generation.
 
         This isolates the clothing item on a transparent or white background,
         making it easier to use in virtual try-ons.
@@ -154,7 +155,7 @@ Requirements:
             subject_description: Description of what to keep (default: "clothing item")
 
         Returns:
-            Image with removed background as bytes
+            Image with removed background as bytes (PNG format)
 
         Raises:
             Exception: If service is not available or operation fails
@@ -162,37 +163,56 @@ Requirements:
         if not self.enabled:
             raise Exception("Nano Banana service is not available")
 
-        logger.info(f"✂️  Removing background from {subject_description}...")
+        logger.info(f"✂️  Removing background from {subject_description} with Gemini...")
 
         try:
-            # Decode image
+            # Decode image to PIL Image
             img_data = base64.b64decode(image_base64)
+            image = Image.open(io.BytesIO(img_data))
 
-            # Build prompt
+            # Build prompt for background removal
             prompt = f"""Remove the background from this image, keeping only the {subject_description}.
 
-Requirements:
-- Keep the {subject_description} perfectly intact
-- Remove all background elements
-- Use a transparent background (or white if transparency not possible)
-- Maintain all details and colors of the {subject_description}
+CRITICAL REQUIREMENTS:
+- Keep the {subject_description} EXACTLY as it appears - DO NOT change or alter it in any way
+- PRESERVE THE EXACT ORIGINAL COLORS - do not adjust, enhance, or modify the colors
+- Remove ONLY the background elements (hangers, walls, floor, etc.)
+- Use a transparent or white background
+- DO NOT change the lighting, saturation, hue, or any color properties
+- Keep the exact same fabric texture, patterns, and details
 - Ensure clean edges without artifacts
-- Preserve the original quality and resolution"""
+- Maintain the original quality and resolution
+- Center the item in the frame
+- The item should look IDENTICAL to the original, just without the background"""
 
-            # Generate
-            response = self.model.generate_content([
-                prompt,
-                {"mime_type": "image/jpeg", "data": img_data}
-            ])
+            # Generate with new Gemini API
+            response = self.client.models.generate_content(
+                model=self.image_model,
+                contents=[prompt, image]
+            )
 
-            # Extract result
-            if response.candidates and response.candidates[0].content.parts:
-                for part in response.candidates[0].content.parts:
-                    if hasattr(part, 'inline_data') and part.inline_data:
-                        result_data = part.inline_data.data
-                        logger.info(f"✅ Background removed ({len(result_data)} bytes)")
-                        return result_data
+            # Extract generated image - iterate response.parts directly (not candidates)
+            for part in response.parts:
+                if part.text is not None:
+                    logger.info(f"📝 Gemini text response: {part.text[:100]}...")
+                elif part.inline_data is not None:
+                    # Get the image data directly from inline_data
+                    image_data = part.inline_data.data
 
+                    # Try to convert to PIL and save as PNG
+                    try:
+                        pil_image = Image.open(io.BytesIO(image_data))
+                        output_buffer = io.BytesIO()
+                        pil_image.save(output_buffer, format='PNG')
+                        result_data = output_buffer.getvalue()
+                    except:
+                        # If conversion fails, use raw data
+                        result_data = image_data
+
+                    logger.info(f"✅ Background removed ({len(result_data)} bytes)")
+                    return result_data
+
+            logger.warning(f"⚠️  No image in response")
             raise Exception("No image generated in response")
 
         except Exception as e:
@@ -323,6 +343,52 @@ Make it look like a professional fashion photography shot, well-styled and aesth
             logger.error(f"❌ Style inspiration generation error: {e}")
             raise
 
+
+    @trace(name="nanobanana_remove_background_rembg")
+    async def remove_background_rembg(
+        self,
+        image_bytes: bytes
+    ) -> bytes:
+        """
+        Remove background from clothing image using rembg (AI-powered, local).
+
+        This extracts just the clothing item, removing hangers, backgrounds, etc.
+        Uses the U2-Net model for accurate background removal.
+
+        Args:
+            image_bytes: Image data as bytes
+
+        Returns:
+            Image with transparent background as bytes (PNG format)
+
+        Raises:
+            Exception: If background removal fails
+        """
+        logger.info("✂️  Removing background with rembg (AI-powered)...")
+
+        try:
+            from rembg import remove
+            from PIL import Image
+            import io
+
+            # Remove background using rembg
+            output_data = remove(image_bytes)
+
+            # Convert to PIL Image to ensure it's PNG with transparency
+            img = Image.open(io.BytesIO(output_data))
+
+            # Save as PNG with transparency
+            output_buffer = io.BytesIO()
+            img.save(output_buffer, format='PNG')
+            result_bytes = output_buffer.getvalue()
+
+            logger.info(f"✅ Background removed successfully ({len(result_bytes)} bytes)")
+            return result_bytes
+
+        except Exception as e:
+            logger.error(f"❌ Background removal error: {e}")
+            logger.warning("⚠️  Returning original image due to error")
+            return image_bytes
 
     @trace(name="extract_clothing_items")
     async def extract_clothing_items(

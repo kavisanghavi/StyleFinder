@@ -230,32 +230,29 @@ async def analyze_clothing(
         image_data = await file.read()
         content_type = file.content_type or "image/jpeg"
 
-        # Auto-rotate image based on EXIF orientation
+        # Auto-rotate image to vertical/portrait orientation
         try:
             image = Image.open(io.BytesIO(image_data))
             original_size = image.size
+            width, height = original_size
 
-            # Use PIL's built-in exif_transpose to auto-correct orientation
-            # This automatically handles EXIF orientation tags and removes them
+            # First, apply EXIF orientation correction
             corrected_image = ImageOps.exif_transpose(image)
 
-            # Check if image was actually rotated
-            if corrected_image and corrected_image.size != original_size:
-                logger.info(f"🔄 Auto-rotated image from {original_size} to {corrected_image.size}")
+            # Then, ensure image is portrait (vertical/top-down)
+            # If width > height, rotate 90° counter-clockwise to make it portrait
+            if corrected_image.width > corrected_image.height:
+                corrected_image = corrected_image.rotate(90, expand=True)
+                logger.info(f"🔄 Rotated image 90° to portrait: {original_size} → {corrected_image.size}")
+            else:
+                logger.info(f"✅ Image is already portrait orientation: {corrected_image.size}")
 
-                # Save corrected image back to bytes
-                output = io.BytesIO()
-                image_format = corrected_image.format or 'JPEG'
-                corrected_image.save(output, format=image_format, quality=95)
-                image_data = output.getvalue()
-                logger.info("✅ Image orientation corrected")
-            elif corrected_image:
-                # Image was processed but dimensions didn't change (might have been 180° rotation)
-                logger.info("✅ Image orientation verified and corrected if needed")
-                output = io.BytesIO()
-                image_format = corrected_image.format or 'JPEG'
-                corrected_image.save(output, format=image_format, quality=95)
-                image_data = output.getvalue()
+            # Save corrected image back to bytes
+            output = io.BytesIO()
+            image_format = corrected_image.format or 'JPEG'
+            corrected_image.save(output, format=image_format, quality=95)
+            image_data = output.getvalue()
+
         except Exception as e:
             logger.warning(f"⚠️  Could not auto-rotate image: {e}, using original")
 
