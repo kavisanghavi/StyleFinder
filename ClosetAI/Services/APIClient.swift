@@ -378,26 +378,24 @@ class APIClient {
         body.append(modelImageData)
         body.append("\r\n".data(using: .utf8)!)
 
-        // Add clothing images
-        for (index, clothingImage) in clothingItems.enumerated() {
-            guard let clothingImageData = clothingImage.jpegData(compressionQuality: 0.8) else {
-                throw APIError.imageConversionFailed
-            }
-
-            let fieldName = "clothing_image_\(index + 1)"
-            body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"\(fieldName)\"; filename=\"clothing\(index + 1).jpg\"\r\n".data(using: .utf8)!)
-            body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
-            body.append(clothingImageData)
-            body.append("\r\n".data(using: .utf8)!)
+        // Combine all clothing items into one composite image
+        let compositeImage = createCompositeImage(from: clothingItems)
+        guard let clothingImageData = compositeImage.jpegData(compressionQuality: 0.8) else {
+            throw APIError.imageConversionFailed
         }
+
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"clothing_image\"; filename=\"outfit.jpg\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+        body.append(clothingImageData)
+        body.append("\r\n".data(using: .utf8)!)
 
         // Close boundary
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
 
         request.httpBody = body
 
-        print("📤 Generating virtual try-on with \(clothingItems.count) clothing items...")
+        print("📤 Generating virtual try-on with \(clothingItems.count) clothing items combined into one outfit...")
 
         let (data, response) = try await session.data(for: request)
 
@@ -414,14 +412,79 @@ class APIClient {
             throw APIError.serverError(statusCode: httpResponse.statusCode)
         }
 
-        guard let resultImage = UIImage(data: data) else {
-            print("❌ Failed to decode result image")
+        // Parse JSON response
+        do {
+            let jsonResponse = try JSONDecoder().decode(VirtualTryOnResponse.self, from: data)
+
+            // Try to get image from base64 first
+            if let base64String = jsonResponse.try_on_image_base64,
+               let imageData = Data(base64Encoded: base64String),
+               let resultImage = UIImage(data: imageData) {
+                print("✅ Virtual try-on generated successfully from base64")
+                return resultImage
+            }
+
+            // Fallback to downloading from URL if available
+            if let imageUrlString = jsonResponse.try_on_image_url,
+               let imageUrl = URL(string: imageUrlString) {
+                print("📥 Downloading result from Tigris URL...")
+                let (imageData, _) = try await session.data(from: imageUrl)
+                guard let resultImage = UIImage(data: imageData) else {
+                    throw APIError.invalidResponse
+                }
+                print("✅ Virtual try-on downloaded successfully")
+                return resultImage
+            }
+
             throw APIError.invalidResponse
+        } catch {
+            print("❌ Failed to parse virtual try-on response: \(error)")
+            throw APIError.decodingError(error)
+        }
+    }
+
+    /// Create a composite image from multiple clothing items
+    private func createCompositeImage(from images: [UIImage]) -> UIImage {
+        guard !images.isEmpty else {
+            // Return a blank image if no items
+            return UIImage()
         }
 
-        print("✅ Virtual try-on generated successfully")
+        // If only one image, return it directly
+        if images.count == 1 {
+            return images[0]
+        }
 
-        return resultImage
+        // Create a grid layout for multiple items
+        let itemsPerRow = 2
+        let rows = (images.count + itemsPerRow - 1) / itemsPerRow
+
+        // Calculate canvas size (assuming all images are similar size)
+        let itemSize: CGFloat = 400 // Standard size for each item
+        let spacing: CGFloat = 20
+        let canvasWidth = CGFloat(itemsPerRow) * itemSize + CGFloat(itemsPerRow - 1) * spacing
+        let canvasHeight = CGFloat(rows) * itemSize + CGFloat(rows - 1) * spacing
+
+        // Create canvas
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: canvasWidth, height: canvasHeight))
+
+        return renderer.image { context in
+            // Fill with white background
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: canvasWidth, height: canvasHeight))
+
+            // Draw each image in grid
+            for (index, image) in images.enumerated() {
+                let row = index / itemsPerRow
+                let col = index % itemsPerRow
+
+                let x = CGFloat(col) * (itemSize + spacing)
+                let y = CGFloat(row) * (itemSize + spacing)
+
+                let rect = CGRect(x: x, y: y, width: itemSize, height: itemSize)
+                image.draw(in: rect)
+            }
+        }
     }
 
     /// Backup encrypted wardrobe to Tigris
@@ -517,6 +580,14 @@ struct VirtualTryOnRequest: Codable {
     let user_image_base64: String
     let clothing_items_base64: [String]
     let style_guidance: String?
+}
+
+struct VirtualTryOnResponse: Codable {
+    let success: Bool
+    let message: String
+    let try_on_image_url: String?
+    let try_on_image_base64: String?
+    let timestamp: String
 }
 
 struct BackupRequest: Codable {
