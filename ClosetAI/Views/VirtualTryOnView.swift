@@ -9,7 +9,7 @@ import SwiftUI
 
 struct VirtualTryOnView: View {
     @EnvironmentObject var wardrobeVM: WardrobeViewModel
-    @StateObject private var savedOutfitsManager = SavedOutfitsManager()
+    @EnvironmentObject var savedOutfitsManager: SavedOutfitsManager
 
     @State private var userPhoto: UIImage?
     @State private var selectedOutfit: SavedOutfit?

@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var wardrobeVM = WardrobeViewModel()
+    @StateObject private var savedOutfitsManager = SavedOutfitsManager()
     @State private var selectedTab = 0
 
     var body: some View {
@@ -38,6 +39,7 @@ struct ContentView: View {
                 .tag(3)
         }
         .environmentObject(wardrobeVM)
+        .environmentObject(savedOutfitsManager)
         .tint(Color(hex: "6366F1"))
     }
 }
@@ -607,7 +609,7 @@ struct WardrobeCard: View {
 
 struct OutfitGeneratorView: View {
     @EnvironmentObject var wardrobeVM: WardrobeViewModel
-    @StateObject private var savedOutfitsManager = SavedOutfitsManager()
+    @EnvironmentObject var savedOutfitsManager: SavedOutfitsManager
     @State private var selectedTab = 0  // 0 = Generate, 1 = Saved
     @State private var occasion = "Work"
     @State private var isGenerating = false
