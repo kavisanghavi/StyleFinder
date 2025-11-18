@@ -107,7 +107,7 @@ def create_sandbox():
 
 def deploy_backend(sandbox):
     """Deploy the FastAPI backend in the sandbox."""
-    print("\n📁 Uploading backend code...")
+    print("\n📁 Deploying backend code...")
 
     # Get the backend directory (we're already in backend-api/)
     backend_dir = Path(__file__).parent
@@ -116,12 +116,43 @@ def deploy_backend(sandbox):
         print(f"❌ Backend directory not found: {backend_dir}")
         sys.exit(1)
 
-    # Upload application code
-    print("   Uploading app/ directory...")
-    sandbox.fs.upload(str(backend_dir / "app"), "/workspace/app")
+    # Upload application code files one by one
+    print("   Uploading Python files...")
+    app_dir = backend_dir / "app"
 
-    print("   Uploading requirements.txt...")
-    sandbox.fs.upload(str(backend_dir / "requirements.txt"), "/workspace/requirements.txt")
+    # Create app directory
+    sandbox.process.code_run("mkdir -p /workspace/app/services /workspace/app/monitoring /workspace/app/static")
+
+    # Upload all Python files from app/
+    for py_file in app_dir.glob("*.py"):
+        print(f"   - {py_file.name}")
+        content = py_file.read_text()
+        sandbox.fs.write(f"/workspace/app/{py_file.name}", content)
+
+    # Upload services directory
+    services_dir = app_dir / "services"
+    if services_dir.exists():
+        for py_file in services_dir.glob("*.py"):
+            print(f"   - services/{py_file.name}")
+            content = py_file.read_text()
+            sandbox.fs.write(f"/workspace/app/services/{py_file.name}", content)
+
+    # Upload monitoring directory
+    monitoring_dir = app_dir / "monitoring"
+    if monitoring_dir.exists():
+        for py_file in monitoring_dir.glob("*.py"):
+            print(f"   - monitoring/{py_file.name}")
+            content = py_file.read_text()
+            sandbox.fs.write(f"/workspace/app/monitoring/{py_file.name}", content)
+
+    # Upload static files
+    static_dir = app_dir / "static"
+    if static_dir.exists():
+        for file in static_dir.glob("*"):
+            if file.is_file():
+                print(f"   - static/{file.name}")
+                content = file.read_text()
+                sandbox.fs.write(f"/workspace/app/static/{file.name}", content)
 
     # Create .env file in sandbox
     print("   Creating .env file...")
@@ -131,7 +162,6 @@ ELEVENLABS_API_KEY={os.getenv('ELEVENLABS_API_KEY')}
 GEMINI_API_KEY={os.getenv('GEMINI_API_KEY')}
 TIGRIS_ACCESS_KEY={os.getenv('TIGRIS_ACCESS_KEY', '')}
 TIGRIS_SECRET_KEY={os.getenv('TIGRIS_SECRET_KEY', '')}
-GALILEO_API_KEY={os.getenv('GALILEO_API_KEY', '')}
 BREX_API_KEY={os.getenv('BREX_API_KEY', '')}
 WEATHER_API_KEY={os.getenv('WEATHER_API_KEY', '')}
 ENVIRONMENT=production
@@ -140,7 +170,7 @@ BACKEND_URL=https://preview-{sandbox.id}.daytona.app
 
     sandbox.fs.write("/workspace/.env", env_content)
 
-    print("✅ Backend code uploaded!")
+    print("✅ Backend code deployed!")
 
 def start_server(sandbox):
     """Start the FastAPI server in the sandbox."""
@@ -148,11 +178,11 @@ def start_server(sandbox):
 
     # Start uvicorn in background
     result = sandbox.process.start_and_wait(
-        cmd="uvicorn app.main:app --host 0.0.0.0 --port 8000",
+        cmd="cd /workspace && uvicorn app.main:app --host 0.0.0.0 --port 8000",
         background=True
     )
 
-    print("✅ Server started!")
+    print("✅ Server starting in background!")
 
     return result
 
