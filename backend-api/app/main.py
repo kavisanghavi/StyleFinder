@@ -489,109 +489,150 @@ async def get_user_closet(user_id: str, db: Session = Depends(get_db)):
 # ==================== Outfit Generation ====================
 
 @app.post(
-    "/style-recipe",
+    "/style-outfit-smart",
     tags=["Outfit Styler"],
-    summary="Get outfit styling recipe for an occasion",
-    description="Returns styling guidance for an occasion. iOS uses Apple Intelligence to match items locally."
+    summary="Claude-powered smart outfit matching",
+    description="Send your wardrobe items and get 3 AI-matched outfit variations."
 )
-async def style_recipe(
+async def style_outfit_smart(
     occasion: str = Body(...),
+    wardrobe_items: List[Dict[str, Any]] = Body(...),
     weather: Optional[Dict[str, Any]] = Body(None)
 ):
     """
-    Get outfit styling recipe from Claude.
+    Claude-powered outfit matching with actual item analysis.
 
-    iOS will use Apple Intelligence to match items locally.
+    Claude sees all your items and picks the best combinations.
 
     Steps:
-    1. Ask Claude for outfit requirements and styling guidance
-    2. Return recipe with specific criteria for each category
-    3. iOS matches items locally using on-device AI
+    1. Claude analyzes your entire wardrobe
+    2. Creates 3 different outfit variations for the occasion
+    3. Returns matched outfits with specific item IDs
 
     Args:
-        user_id: User identifier
-        occasion: Type of occasion (work, casual, date night, gym, brunch, etc.)
-        weather: Optional weather info (temperature, condition)
+        occasion: Type of occasion
+        wardrobe_items: Full list of user's clothing items
+        weather: Optional weather info
 
     Returns:
-        Styled outfit with items and styling advice
+        3 complete outfit variations with matched items
     """
     try:
-        logger.info(f"🎨 Creating styling recipe for occasion: {occasion}")
+        logger.info(f"🎨 Smart outfit matching for {occasion} with {len(wardrobe_items)} items")
 
-        # Ask Claude for outfit recipe (no item matching, just guidance)
+        # Build wardrobe description for Claude
+        items_description = "\n".join([
+            f"- ID: {item['id']}\n  Type: {item['type']}\n  Color: {item['color']}\n  Style: {item['style']}\n  Pattern: {item['pattern']}\n  Occasions: {', '.join(item.get('occasion', []))}"
+            for item in wardrobe_items
+        ])
+
         import anthropic
         import json
         import re
 
         client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
-        recipe_prompt = f"""Create 3 different outfit variations for a {occasion} occasion.
+        smart_matching_prompt = f"""Create 3 different complete outfit variations for a {occasion} occasion from this wardrobe.
 
 Weather: {weather.get('condition', 'mild') if weather else 'mild'}, {weather.get('temperature', 'comfortable') if weather else 'comfortable'}°
 
 Each variation should have a different style/vibe but all appropriate for the occasion.
 
-IMPORTANT: Return ONLY valid JSON, no markdown:
+AVAILABLE WARDROBE:
+{items_description}
+
+IMPORTANT: Analyze each item carefully (colors, patterns, styles, occasions).
+Create 3 DIFFERENT complete outfits using ONLY items from the wardrobe above.
+
+Each outfit should:
+1. Be appropriate for {occasion}
+2. Have items that work well together (colors, patterns, formality)
+3. Respect the occasion field of items (formal items for formal occasions)
+4. Use ACTUAL item IDs from the wardrobe
+
+Return ONLY valid JSON:
 {{
     "outfits": [
         {{
             "name": "Classic Look",
             "vibe": "Timeless and polished",
-            "recipe": {{
-                "top": "Specific criteria",
-                "bottom": "Specific criteria",
-                "shoes": "Specific criteria",
-                "outerwear": "Optional",
-                "accessories": "Optional"
-            }},
-            "color_palette": ["color1", "color2"],
-            "styling_tips": "How to wear this variation"
+            "items": [
+                {{"item_id": "actual-uuid-from-wardrobe", "role": "why this item works"}},
+                ...
+            ],
+            "styling_tips": "How to wear and accessorize",
+            "color_story": "Why these colors work together"
         }},
-        {{
-            "name": "Modern Edge",
-            "vibe": "Contemporary and bold",
-            ...
-        }},
-        {{
-            "name": "Comfortable Chic",
-            "vibe": "Relaxed yet stylish",
-            ...
-        }}
+        ...  (2 more variations)
     ]
 }}"""
 
-        logger.info("🤔 Asking Claude for styling recipe...")
+        logger.info("🤖 Having Claude match items intelligently...")
 
         response = client.messages.create(
             model=settings.CLAUDE_MODEL,
-            max_tokens=1500,
-            messages=[{"role": "user", "content": recipe_prompt}]
+            max_tokens=3000,
+            messages=[{"role": "user", "content": smart_matching_prompt}]
         )
 
-        # Extract JSON from response
+        # Extract JSON
         response_text = response.content[0].text
-        logger.info(f"📝 Claude recipe: {response_text[:200]}...")
+        logger.info(f"📝 Claude response (full): {response_text}")
 
-        # Remove markdown if present
-        json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
-        if json_match:
-            response_text = json_match.group(1)
-        elif not response_text.strip().startswith('{'):
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+        # Try to extract JSON
+        try:
+            json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
             if json_match:
-                response_text = json_match.group(0)
+                response_text = json_match.group(1)
+            elif not response_text.strip().startswith('{'):
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if json_match:
+                    response_text = json_match.group(0)
 
-        recipe_data = json.loads(response_text)
-        outfits = recipe_data.get('outfits', [])
+            outfit_data = json.loads(response_text)
+            outfits = outfit_data.get('outfits', [])
 
-        logger.info(f"✅ Created {len(outfits)} outfit variations for {occasion}")
+            if not outfits:
+                logger.warning("⚠️  No outfits in response, returning empty")
+                return {
+                    "success": False,
+                    "message": "Claude couldn't create outfits from available items",
+                    "outfits": []
+                }
+
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ JSON parse error: {e}")
+            logger.error(f"Response text: {response_text}")
+            raise HTTPException(status_code=500, detail=f"Failed to parse Claude response: {str(e)}")
+
+        # Enrich with full item details
+        enriched_outfits = []
+        for outfit in outfits:
+            matched_items = []
+            for outfit_item in outfit.get('items', []):
+                item_id = outfit_item['item_id']
+                full_item = next((item for item in wardrobe_items if item.get('id') == item_id), None)
+
+                if full_item:
+                    item_copy = full_item.copy()
+                    item_copy['role_in_outfit'] = outfit_item.get('role', '')
+                    matched_items.append(item_copy)
+
+            enriched_outfits.append({
+                'name': outfit.get('name', 'Outfit'),
+                'vibe': outfit.get('vibe', ''),
+                'items': matched_items,
+                'styling_tips': outfit.get('styling_tips', ''),
+                'color_story': outfit.get('color_story', '')
+            })
+
+        logger.info(f"✨ Created {len(enriched_outfits)} smart-matched outfits")
 
         return {
             "success": True,
             "occasion": occasion,
             "weather": weather,
-            "outfits": outfits  # Array of outfit variations
+            "outfits": enriched_outfits
         }
 
     except Exception as e:

@@ -118,6 +118,53 @@ class APIClient {
         }
     }
 
+    /// Claude-powered smart outfit matching (sends all items)
+    func getSmartOutfits(
+        occasion: String,
+        wardrobeItems: [ClothingItem],
+        weather: Weather? = nil
+    ) async throws -> [(name: String, vibe: String, items: [String], stylingTips: String)] {
+        let url = URL(string: "\(baseURL)/style-outfit-smart")!
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Build request with all items
+        var requestDict: [String: Any] = [
+            "occasion": occasion,
+            "wardrobe_items": wardrobeItems.map { $0.toDictionary() }
+        ]
+
+        if let weather = weather {
+            requestDict["weather"] = weather.toDictionary()
+        }
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestDict)
+
+        print("🤖 Getting smart Claude-matched outfits...")
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw APIError.invalidResponse
+        }
+
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let outfitsArray = json["outfits"] as? [[String: Any]] ?? []
+
+        return outfitsArray.map { outfit in
+            let items = (outfit["items"] as? [[String: Any]] ?? []).map { $0["id"] as? String ?? "" }
+            return (
+                name: outfit["name"] as? String ?? "Outfit",
+                vibe: outfit["vibe"] as? String ?? "",
+                items: items,
+                stylingTips: outfit["styling_tips"] as? String ?? ""
+            )
+        }
+    }
+
     /// Get multiple outfit styling recipes from backend (Claude)
     func getStyleRecipes(
         occasion: String,

@@ -93,6 +93,9 @@ struct OutfitItemImageCard: View {
     let item: ClothingItem
     @State private var itemImage: UIImage? = nil
 
+    // Simple in-memory cache
+    private static var imageCache: [String: UIImage] = [:]
+
     var body: some View {
         VStack(spacing: 12) {
             // Image
@@ -125,12 +128,21 @@ struct OutfitItemImageCard: View {
                     .lineLimit(1)
             }
         }
-        .task {
+        .onAppear {
+            loadImage()
+        }
+        .onChange(of: item.id) { _, _ in
             loadImage()
         }
     }
 
     func loadImage() {
+        // Check cache first
+        if let cached = Self.imageCache[item.imagePath] {
+            self.itemImage = cached
+            return
+        }
+
         Task {
             guard !item.imagePath.isEmpty, let url = URL(string: item.imagePath) else {
                 return
@@ -139,6 +151,9 @@ struct OutfitItemImageCard: View {
             do {
                 let (data, _) = try await URLSession.shared.data(from: url)
                 if let image = UIImage(data: data) {
+                    // Cache it
+                    Self.imageCache[item.imagePath] = image
+
                     await MainActor.run {
                         self.itemImage = image
                     }

@@ -42,6 +42,44 @@ struct ContentView: View {
     }
 }
 
+// MARK: - Outfits Sheet (Popup)
+
+struct OutfitsSheetView: View {
+    let outfits: [OutfitSuggestion]
+    let wardrobeItems: [ClothingItem]
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color(hex: "F8F9FA").ignoresSafeArea()
+
+                TabView {
+                    ForEach(outfits) { outfit in
+                        ScrollView {
+                            OutfitCardView(outfit: outfit, wardrobeItems: wardrobeItems)
+                                .padding(20)
+                        }
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .always))
+            }
+            .navigationTitle("Your Outfit Styles")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        isPresented = false
+                    }
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(Color(hex: "6366F1"))
+                }
+            }
+        }
+        .presentationDetents([.large])
+    }
+}
+
 // MARK: - Scanner Sheet View
 
 struct ScannerSheetView: View {
@@ -565,6 +603,7 @@ struct OutfitGeneratorView: View {
     @State private var occasion = "Work"
     @State private var isGenerating = false
     @State private var generatedOutfits: [OutfitSuggestion] = []  // Multiple outfits
+    @State private var showOutfitsSheet = false  // Show in popup
     @State private var weatherEnabled = true
     @State private var city = "San Francisco"
 
@@ -666,17 +705,8 @@ struct OutfitGeneratorView: View {
                         .disabled(isGenerating)
                         .padding(.horizontal, 20)
 
-                        // Results - Swipeable Carousel
-                        if !generatedOutfits.isEmpty {
-                            TabView {
-                                ForEach(generatedOutfits) { outfit in
-                                    OutfitCardView(outfit: outfit, wardrobeItems: wardrobeVM.items)
-                                        .padding(.horizontal, 20)
-                                }
-                            }
-                            .tabViewStyle(.page(indexDisplayMode: .always))
-                            .frame(height: 600)
-                        } else if let outfit = generatedOutfits.first {
+                        // Old UI - Remove this block
+                        if false, let outfit = generatedOutfits.first {
                             VStack(spacing: 20) {
                                 // Success Header
                                 HStack(spacing: 12) {
@@ -775,7 +805,7 @@ struct OutfitGeneratorView: View {
                                 HStack(spacing: 12) {
                                     Button(action: {
                                         withAnimation(.spring(response: 0.3)) {
-                                            generatedOutfit = nil
+                                            generatedOutfits = []
                                         }
                                     }) {
                                         Text("Try Again")
@@ -811,6 +841,9 @@ struct OutfitGeneratorView: View {
                 }
             }
         }
+        .sheet(isPresented: $showOutfitsSheet) {
+            OutfitsSheetView(outfits: generatedOutfits, wardrobeItems: wardrobeVM.items, isPresented: $showOutfitsSheet)
+        }
     }
 
     func generateOutfit() {
@@ -824,39 +857,37 @@ struct OutfitGeneratorView: View {
 
         Task {
             do {
-                // 1. Get multiple styling recipes from backend (Claude)
-                print("📡 Getting style recipes from backend...")
-                let recipes = try await APIClient.shared.getStyleRecipes(
+                // SMART CLAUDE MATCHING: Send all items, Claude picks best combinations
+                print("🤖 Getting Claude-powered outfit matching...")
+                let matchedOutfits = try await APIClient.shared.getSmartOutfits(
                     occasion: occasion,
+                    wardrobeItems: wardrobeVM.items,
                     weather: weatherEnabled ? Weather(temperature: 72, condition: "Clear") : nil
                 )
 
-                print("✅ Received \(recipes.count) outfit variations")
+                print("✅ Claude matched \(matchedOutfits.count) outfit variations")
 
-                // 2. Match items for each recipe using Apple Intelligence
+                // Convert to OutfitSuggestion format
                 var outfits: [OutfitSuggestion] = []
 
-                for recipe in recipes {
-                    let selectedItems = try await AppleIntelligenceStyler.shared.matchItemsToRecipe(
-                        recipe: recipe.recipe,
-                        availableItems: wardrobeVM.items,
-                        colorPalette: recipe.colorPalette,
-                        stylingTips: recipe.stylingTips
-                    )
-
-                    let outfitItems = selectedItems.map { item in
-                        OutfitSuggestion.OutfitItem(
+                for matched in matchedOutfits {
+                    // Convert item IDs to OutfitItem objects
+                    let outfitItems = matched.items.compactMap { itemId -> OutfitSuggestion.OutfitItem? in
+                        guard let item = wardrobeVM.items.first(where: { $0.id.uuidString == itemId }) else {
+                            return nil
+                        }
+                        return OutfitSuggestion.OutfitItem(
                             id: item.id.uuidString,
                             type: item.type,
-                            reasoning: recipe.vibe
+                            reasoning: matched.vibe
                         )
                     }
 
                     let outfit = OutfitSuggestion(
-                        occasion: recipe.name,  // "Classic Look", etc.
+                        occasion: matched.name,
                         items: outfitItems,
-                        reasoning: recipe.vibe,
-                        styleTips: recipe.stylingTips,
+                        reasoning: matched.vibe,
+                        styleTips: matched.stylingTips,
                         weatherTemp: 72.0,
                         weatherCondition: "Clear"
                     )
@@ -864,13 +895,12 @@ struct OutfitGeneratorView: View {
                     outfits.append(outfit)
                 }
 
-                print("✅ Created \(outfits.count) complete outfits")
+                print("✅ Created \(outfits.count) complete outfits with images")
 
                 await MainActor.run {
-                    withAnimation(.spring(response: 0.4)) {
-                        generatedOutfits = outfits
-                        isGenerating = false
-                    }
+                    generatedOutfits = outfits
+                    isGenerating = false
+                    showOutfitsSheet = true  // Show popup!
                 }
             } catch {
                 print("❌ Outfit generation error: \(error)")
