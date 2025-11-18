@@ -23,6 +23,7 @@ import base64
 import io
 import logging
 from pathlib import Path
+from PIL import Image, ExifTags, ImageOps
 
 # Import services
 from app.services.claude_service import claude_service
@@ -228,6 +229,35 @@ async def analyze_clothing(
         # Read image
         image_data = await file.read()
         content_type = file.content_type or "image/jpeg"
+
+        # Auto-rotate image based on EXIF orientation
+        try:
+            image = Image.open(io.BytesIO(image_data))
+            original_size = image.size
+
+            # Use PIL's built-in exif_transpose to auto-correct orientation
+            # This automatically handles EXIF orientation tags and removes them
+            corrected_image = ImageOps.exif_transpose(image)
+
+            # Check if image was actually rotated
+            if corrected_image and corrected_image.size != original_size:
+                logger.info(f"🔄 Auto-rotated image from {original_size} to {corrected_image.size}")
+
+                # Save corrected image back to bytes
+                output = io.BytesIO()
+                image_format = corrected_image.format or 'JPEG'
+                corrected_image.save(output, format=image_format, quality=95)
+                image_data = output.getvalue()
+                logger.info("✅ Image orientation corrected")
+            elif corrected_image:
+                # Image was processed but dimensions didn't change (might have been 180° rotation)
+                logger.info("✅ Image orientation verified and corrected if needed")
+                output = io.BytesIO()
+                image_format = corrected_image.format or 'JPEG'
+                corrected_image.save(output, format=image_format, quality=95)
+                image_data = output.getvalue()
+        except Exception as e:
+            logger.warning(f"⚠️  Could not auto-rotate image: {e}, using original")
 
         # Encode for processing
         image_base64 = base64.b64encode(image_data).decode('utf-8')
