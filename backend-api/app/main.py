@@ -30,6 +30,8 @@ from app.services.elevenlabs_service import elevenlabs_service
 from app.services.nanobanana_service import nanobanana_service
 from app.services.tigris_service import tigris_service
 from app.services.brex_service import brex_service
+from app.services.weather_service import weather_service
+from app.services.background_removal_service import background_removal_service
 from app.monitoring.galileo_observer import galileo_observer
 from app.config import settings
 
@@ -152,9 +154,34 @@ async def health_check():
             "elevenlabs": {"enabled": elevenlabs_service.enabled},
             "nanobanana": {"enabled": nanobanana_service.enabled},
             "tigris": {"enabled": tigris_service.enabled},
+            "weather": {"enabled": weather_service.enabled},
             "galileo": {"enabled": galileo_observer.galileo_enabled}
         }
     }
+
+
+# ==================== Weather ====================
+
+@app.get("/weather/{city}", tags=["Weather"])
+async def get_weather(city: str):
+    """Get current weather for a city to help with outfit recommendations."""
+    try:
+        weather_data = await weather_service.get_current_weather(city)
+        return weather_data
+    except Exception as e:
+        logger.error(f"Weather fetch error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/weather/{city}/forecast", tags=["Weather"])
+async def get_forecast(city: str, days: int = 3):
+    """Get weather forecast for outfit planning."""
+    try:
+        forecast = await weather_service.get_forecast(city, days)
+        return {"city": city, "forecast": forecast}
+    except Exception as e:
+        logger.error(f"Forecast fetch error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ==================== Clothing Analysis ====================
@@ -185,17 +212,37 @@ async def analyze_clothing(file: UploadFile = File(...)):
     try:
         logger.info(f"📸 Analyzing clothing image: {file.filename}")
 
-        # Read and encode image
+        # Read image
         image_data = await file.read()
-        image_base64 = base64.b64encode(image_data).decode('utf-8')
 
-        # Get content type
+        # Encode for Claude
+        image_base64 = base64.b64encode(image_data).decode('utf-8')
         content_type = file.content_type or "image/jpeg"
 
-        # Analyze with Claude
+        # MVP-C.3: Auto-generate ALL metadata with multimodal LLM
+        logger.info("🤖 Auto-generating metadata with Claude...")
         analysis = await claude_service.analyze_clothing(image_base64, content_type)
 
-        logger.info(f"✅ Analysis complete: {analysis.get('type')}")
+        # MVP-C.2: Extract individual clothing items with Gemini
+        if analysis.get('item_count', 1) > 1 and analysis.get('all_items'):
+            logger.info(f"✂️  Extracting {analysis['item_count']} individual items...")
+
+            # Extract each clothing item separately with background removed
+            extracted_images = await nanobanana_service.extract_clothing_items(
+                image_data=image_data,
+                item_descriptions=analysis['all_items']
+            )
+
+            # Add extracted images to each item as base64
+            for i, item in enumerate(analysis['all_items']):
+                if i < len(extracted_images):
+                    item['extracted_image'] = base64.b64encode(extracted_images[i]).decode('utf-8')
+
+            # Add to main result too
+            if extracted_images:
+                analysis['extracted_image'] = base64.b64encode(extracted_images[0]).decode('utf-8')
+
+        logger.info(f"✅ Analysis complete: {analysis.get('item_count', 1)} item(s) processed!")
 
         return analysis
 
@@ -232,13 +279,26 @@ async def generate_outfit(request: OutfitRequest):
     try:
         logger.info(f"👔 Generating outfit for occasion: {request.occasion}")
 
+        # Fetch weather if city is provided
+        weather_context = None
+        if request.weather:
+            try:
+                weather_data = await weather_service.get_current_weather(
+                    request.weather.get("city", "San Francisco")
+                )
+                weather_context = weather_service.get_outfit_suggestion_context(weather_data)
+                logger.info(f"🌤️  Weather context: {weather_context}")
+            except Exception as e:
+                logger.warning(f"Weather fetch failed, continuing without: {e}")
+
         # Generate outfit with Claude
         outfit = await claude_service.generate_outfit(
             wardrobe_items=request.wardrobe_items,
             occasion=request.occasion,
             weather=request.weather,
             preferences=request.preferences,
-            color_preference=request.color_preference
+            color_preference=request.color_preference,
+            weather_context=weather_context
         )
 
         # Generate voice recommendation with ElevenLabs (if enabled)

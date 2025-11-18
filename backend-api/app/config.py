@@ -19,22 +19,22 @@ class Settings(BaseSettings):
     """
 
     # ==================== Anthropic (Claude) ====================
-    ANTHROPIC_API_KEY: str
+    ANTHROPIC_API_KEY: Optional[str] = None
     CLAUDE_MODEL: str = "claude-sonnet-4-20250514"
 
     # ==================== ElevenLabs (Voice) ====================
-    ELEVENLABS_API_KEY: str
+    ELEVENLABS_API_KEY: Optional[str] = None
     ELEVENLABS_VOICE_ID: str = "EXAVITQu4vr4xnSDxMaL"  # Bella voice
     ELEVENLABS_MODEL: str = "eleven_multilingual_v2"
 
     # ==================== Google Gemini (Nano Banana) ====================
-    GEMINI_API_KEY: str
+    GEMINI_API_KEY: Optional[str] = None
     GEMINI_MODEL: str = "gemini-2.0-flash-exp"
 
     # ==================== Tigris Storage ====================
     TIGRIS_ENDPOINT: str = "https://fly.storage.tigris.dev"
-    TIGRIS_ACCESS_KEY: str
-    TIGRIS_SECRET_KEY: str
+    TIGRIS_ACCESS_KEY: Optional[str] = None
+    TIGRIS_SECRET_KEY: Optional[str] = None
     TIGRIS_BUCKET_NAME: str = "closet-scanner-backups"
     TIGRIS_REGION: str = "auto"
 
@@ -42,8 +42,17 @@ class Settings(BaseSettings):
     BREX_API_KEY: Optional[str] = None
 
     # ==================== Galileo Observability ====================
-    GALILEO_API_KEY: str
+    GALILEO_API_KEY: Optional[str] = None
     GALILEO_PROJECT_NAME: str = "closet-scanner"
+
+    # ==================== Background Removal (Optional) ====================
+    CLOUDINARY_CLOUD_NAME: Optional[str] = None
+    CLOUDINARY_API_KEY: Optional[str] = None
+    CLOUDINARY_API_SECRET: Optional[str] = None
+    REMOVEBG_API_KEY: Optional[str] = None
+
+    # ==================== Weather API (Optional) ====================
+    WEATHER_API_KEY: Optional[str] = None
 
     # ==================== Application Settings ====================
     ENVIRONMENT: str = "development"
@@ -64,6 +73,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # Ignore extra fields in .env
 
 
 @lru_cache()

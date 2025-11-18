@@ -236,6 +236,34 @@ class APIClient {
         return result.backups
     }
 
+    /// Fetch and restore encrypted wardrobe backup from Tigris
+    func fetchBackup(userId: String) async throws -> Data {
+        // First, get list of backups
+        let backups = try await listBackups(userId: userId)
+
+        guard let latestBackup = backups.first else {
+            throw APIError.serverError(statusCode: 404)
+        }
+
+        // Download the backup file from presigned URL
+        guard let backupURL = URL(string: latestBackup.url) else {
+            throw APIError.invalidResponse
+        }
+
+        print("📥 Fetching backup from: \(backupURL)")
+
+        let (data, response) = try await session.data(from: backupURL)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw APIError.invalidResponse
+        }
+
+        print("✅ Backup fetched successfully (\(data.count) bytes)")
+
+        return data
+    }
+
     /// Check API health
     func checkHealth() async throws -> HealthResponse {
         let url = URL(string: "\(baseURL)/health")!
@@ -272,11 +300,17 @@ struct ClothingAnalysis: Codable {
     let material: String?
     let occasion: [String]?
     let care_instructions: String?
+    let all_items: [ClothingAnalysis]?  // For multiple items detected
+    let item_count: Int?  // Number of items detected
+    let extracted_image: String?  // Base64 encoded extracted/cleaned image
 
     enum CodingKeys: String, CodingKey {
         case type, color, pattern, style, season, confidence, material, occasion
         case pairs_well_with
         case care_instructions
+        case all_items
+        case item_count
+        case extracted_image
     }
 }
 

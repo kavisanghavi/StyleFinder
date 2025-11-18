@@ -12,7 +12,7 @@ Claude is the brain of the outfit recommendation system.
 import anthropic
 import json
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from app.config import settings
 from app.monitoring.galileo_observer import trace
 
@@ -66,23 +66,49 @@ class ClaudeService:
         logger.info("🔍 Analyzing clothing item with Claude...")
 
         # Construct the analysis prompt
-        analysis_prompt = """Analyze this clothing item in detail and respond with ONLY a JSON object (no other text).
+        analysis_prompt = """Analyze this image and identify ALL clothing items visible.
+
+IMPORTANT: If multiple items are visible, return an array with each item separately!
 
 Your JSON response must have this exact structure:
+
+If ONE item:
 {
-    "type": "shirt/pants/dress/jacket/shoes/accessory/etc",
-    "color": "primary color name",
-    "pattern": "solid/striped/floral/checkered/polka-dot/geometric/etc",
-    "style": "casual/formal/athletic/business-casual/elegant/bohemian/etc",
-    "season": ["spring", "summer", "fall", "winter"],
-    "pairs_well_with": ["list of clothing types that would match well"],
-    "confidence": 0.95,
-    "material": "cotton/polyester/silk/denim/leather/etc (if visible)",
-    "occasion": ["work", "casual", "formal", "party", "sports", "etc"],
-    "care_instructions": "general care recommendations"
+    "items": [
+        {
+            "type": "shirt/pants/dress/jacket/shoes/accessory/etc",
+            "color": "primary color name",
+            "pattern": "solid/striped/floral/checkered/polka-dot/geometric/etc",
+            "style": "casual/formal/athletic/business-casual/elegant/bohemian/etc",
+            "season": ["spring", "summer", "fall", "winter"],
+            "pairs_well_with": ["list of clothing types that would match well"],
+            "confidence": 0.95,
+            "material": "cotton/polyester/silk/denim/leather/etc (if visible)",
+            "occasion": ["work", "casual", "formal", "party", "sports", "etc"],
+            "care_instructions": "general care recommendations"
+        }
+    ]
 }
 
-Be specific and detailed. Only respond with the JSON object."""
+If MULTIPLE items (e.g., red shirt + green shirt):
+{
+    "items": [
+        {
+            "type": "shirt",
+            "color": "red",
+            "pattern": "solid",
+            ...
+        },
+        {
+            "type": "shirt",
+            "color": "green",
+            "pattern": "solid",
+            ...
+        }
+    ]
+}
+
+Be specific and detailed. Extract EVERY visible clothing item separately. Only respond with the JSON object."""
 
         try:
             # Make API call to Claude
@@ -114,12 +140,37 @@ Be specific and detailed. Only respond with the JSON object."""
             response_text = message.content[0].text
             logger.debug(f"Claude response: {response_text}")
 
+            # Strip markdown code blocks if present
+            if response_text.strip().startswith("```"):
+                # Remove ```json and ``` markers
+                response_text = response_text.strip()
+                if response_text.startswith("```json"):
+                    response_text = response_text[7:]  # Remove ```json
+                elif response_text.startswith("```"):
+                    response_text = response_text[3:]  # Remove ```
+                if response_text.endswith("```"):
+                    response_text = response_text[:-3]  # Remove trailing ```
+                response_text = response_text.strip()
+
             # Parse JSON
             analysis = json.loads(response_text)
 
-            logger.info(f"✅ Successfully analyzed: {analysis.get('type')} ({analysis.get('color')})")
-
-            return analysis
+            # Handle both old single-item format and new multi-item format
+            if 'items' in analysis:
+                items = analysis['items']
+                logger.info(f"✅ Successfully analyzed {len(items)} item(s)")
+                # Return first item for backward compatibility, but include all in response
+                if items:
+                    result = items[0].copy()
+                    result['all_items'] = items  # Include all items for batch processing
+                    result['item_count'] = len(items)
+                    return result
+                else:
+                    raise ValueError("No items found in image")
+            else:
+                # Old format - single item
+                logger.info(f"✅ Successfully analyzed: {analysis.get('type')} ({analysis.get('color')})")
+                return analysis
 
         except json.JSONDecodeError as e:
             logger.error(f"❌ Failed to parse Claude response as JSON: {e}")
@@ -137,7 +188,8 @@ Be specific and detailed. Only respond with the JSON object."""
         occasion: str,
         weather: Optional[Dict] = None,
         preferences: Optional[Dict] = None,
-        color_preference: Optional[str] = None
+        color_preference: Optional[str] = None,
+        weather_context: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Generate outfit suggestions based on wardrobe and context.
@@ -176,11 +228,13 @@ Be specific and detailed. Only respond with the JSON object."""
         ])
 
         # Build context
-        weather_context = ""
-        if weather:
+        weather_info = ""
+        if weather_context:
+            weather_info = f"\nWeather: {weather_context}"
+        elif weather:
             temp = weather.get('temperature', 'N/A')
             condition = weather.get('condition', 'N/A')
-            weather_context = f"\nWeather: {temp}°F, {condition}"
+            weather_info = f"\nWeather: {temp}°F, {condition}"
 
         preferences_context = ""
         if preferences:
@@ -197,7 +251,7 @@ WARDROBE:
 {wardrobe_description}
 
 OCCASION: {occasion}
-{weather_context}
+{weather_info}
 {preferences_context}
 {color_context}
 

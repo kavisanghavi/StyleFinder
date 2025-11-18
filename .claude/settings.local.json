@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(xcodebuild:*)",
+      "Bash(backend-api/requirements.txt)",
+      "Bash(backend-api/requirements.txt.tmp)",
+      "Bash(python3:*)",
+      "Bash(source:*)",
+      "Bash(pip install:*)",
+      "Bash(./backend-api/venv/bin/pip install:*)",
+      "Bash(../backend-api/venv/bin/uvicorn:*)",
+      "Bash(curl:*)",
+      "Bash(./venv/bin/uvicorn:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(backend-api/venv/bin/python3:*)",
+      "Bash(backend-api/venv/bin/uvicorn:*)",
+      "Bash(chmod:*)",
+      "Bash(backend-api/start.sh)",
+      "Bash(backend-api/venv/bin/pip install:*)",
+      "Bash(cat:*)",
+      "Bash(PYTHONPATH=/Users/aipc/Documents/organzieer/ClosetAI/backend-api ./venv/bin/uvicorn:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
