@@ -42,6 +42,44 @@ struct ContentView: View {
     }
 }
 
+// MARK: - Outfits Sheet (Popup)
+
+struct OutfitsSheetView: View {
+    let outfits: [OutfitSuggestion]
+    let wardrobeItems: [ClothingItem]
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color(hex: "F8F9FA").ignoresSafeArea()
+
+                TabView {
+                    ForEach(outfits) { outfit in
+                        ScrollView {
+                            OutfitCardView(outfit: outfit, wardrobeItems: wardrobeItems)
+                                .padding(20)
+                        }
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .always))
+            }
+            .navigationTitle("Your Outfit Styles")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        isPresented = false
+                    }
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(Color(hex: "6366F1"))
+                }
+            }
+        }
+        .presentationDetents([.large])
+    }
+}
+
 // MARK: - Scanner Sheet View
 
 struct ScannerSheetView: View {
@@ -564,7 +602,8 @@ struct OutfitGeneratorView: View {
     @EnvironmentObject var wardrobeVM: WardrobeViewModel
     @State private var occasion = "Work"
     @State private var isGenerating = false
-    @State private var generatedOutfit: OutfitSuggestion?
+    @State private var generatedOutfits: [OutfitSuggestion] = []  // Multiple outfits
+    @State private var showOutfitsSheet = false  // Show in popup
     @State private var weatherEnabled = true
     @State private var city = "San Francisco"
 
@@ -666,8 +705,8 @@ struct OutfitGeneratorView: View {
                         .disabled(isGenerating)
                         .padding(.horizontal, 20)
 
-                        // Results
-                        if let outfit = generatedOutfit {
+                        // Old UI - Remove this block
+                        if false, let outfit = generatedOutfits.first {
                             VStack(spacing: 20) {
                                 // Success Header
                                 HStack(spacing: 12) {
@@ -766,7 +805,7 @@ struct OutfitGeneratorView: View {
                                 HStack(spacing: 12) {
                                     Button(action: {
                                         withAnimation(.spring(response: 0.3)) {
-                                            generatedOutfit = nil
+                                            generatedOutfits = []
                                         }
                                     }) {
                                         Text("Try Again")
@@ -802,6 +841,9 @@ struct OutfitGeneratorView: View {
                 }
             }
         }
+        .sheet(isPresented: $showOutfitsSheet) {
+            OutfitsSheetView(outfits: generatedOutfits, wardrobeItems: wardrobeVM.items, isPresented: $showOutfitsSheet)
+        }
     }
 
     func generateOutfit() {
@@ -811,24 +853,57 @@ struct OutfitGeneratorView: View {
         }
 
         isGenerating = true
-        generatedOutfit = nil
+        generatedOutfits = []
 
         Task {
             do {
-                // Use user's ACTUAL closet items!
-                let outfit = try await APIClient.shared.generateOutfit(
-                    wardrobeItems: wardrobeVM.items,
+                // SMART CLAUDE MATCHING: Send all items, Claude picks best combinations
+                print("🤖 Getting Claude-powered outfit matching...")
+                let matchedOutfits = try await APIClient.shared.getSmartOutfits(
                     occasion: occasion,
+                    wardrobeItems: wardrobeVM.items,
                     weather: weatherEnabled ? Weather(temperature: 72, condition: "Clear") : nil
                 )
 
-                await MainActor.run {
-                    withAnimation(.spring(response: 0.4)) {
-                        generatedOutfit = outfit
-                        isGenerating = false
+                print("✅ Claude matched \(matchedOutfits.count) outfit variations")
+
+                // Convert to OutfitSuggestion format
+                var outfits: [OutfitSuggestion] = []
+
+                for matched in matchedOutfits {
+                    // Convert item IDs to OutfitItem objects
+                    let outfitItems = matched.items.compactMap { itemId -> OutfitSuggestion.OutfitItem? in
+                        guard let item = wardrobeVM.items.first(where: { $0.id.uuidString == itemId }) else {
+                            return nil
+                        }
+                        return OutfitSuggestion.OutfitItem(
+                            id: item.id.uuidString,
+                            type: item.type,
+                            reasoning: matched.vibe
+                        )
                     }
+
+                    let outfit = OutfitSuggestion(
+                        occasion: matched.name,
+                        items: outfitItems,
+                        reasoning: matched.vibe,
+                        styleTips: matched.stylingTips,
+                        weatherTemp: 72.0,
+                        weatherCondition: "Clear"
+                    )
+
+                    outfits.append(outfit)
+                }
+
+                print("✅ Created \(outfits.count) complete outfits with images")
+
+                await MainActor.run {
+                    generatedOutfits = outfits
+                    isGenerating = false
+                    showOutfitsSheet = true  // Show popup!
                 }
             } catch {
+                print("❌ Outfit generation error: \(error)")
                 await MainActor.run {
                     isGenerating = false
                 }

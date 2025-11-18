@@ -43,12 +43,20 @@ from sqlalchemy.orm import Session
 from fastapi import Depends
 import uuid
 
+# Import Supabase (REST API - more reliable)
+from app.services.supabase_service import supabase_service
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# ==================== In-Memory Storage for Testing ====================
+# Simple dictionary to store analyzed items per user
+# Format: {user_id: [list of analyzed items]}
+CLOSET_CACHE: Dict[str, List[Dict[str, Any]]] = {}
 
 # ==================== Initialize FastAPI App ====================
 
@@ -412,37 +420,33 @@ async def analyze_clothing(
             analysis['extracted_image'] = base64.b64encode(extracted_image_data).decode('utf-8')
             logger.info("📦 Added extracted image to response (base64)")
 
-        # === STEP 5: Save to database ===
+        # === STEP 5: Save to Supabase (REST API) ===
         if user_id:
-            try:
-                item_id = str(uuid.uuid4())  # Generate UUID for item
-                db_item = ClothingItemModel(
-                    id=item_id,
-                    user_id=user_id,
-                    original_image_url=original_image_url,
-                    extracted_image_url=extracted_image_url,
-                    type=analysis.get('type', ''),
-                    color=analysis.get('color', ''),
-                    pattern=analysis.get('pattern', ''),
-                    style=analysis.get('style', ''),
-                    confidence=analysis.get('confidence', 0.0),
-                    season=analysis.get('season', []),
-                    pairs_well_with=analysis.get('pairs_well_with', []),
-                    occasion=analysis.get('occasion'),
-                    material=analysis.get('material'),
-                    care_instructions=analysis.get('care_instructions')
-                )
-                db.add(db_item)
-                db.commit()
-                db.refresh(db_item)
-                logger.info(f"💾 Saved item to database: {item_id}")
+            item_id = str(uuid.uuid4())  # Generate UUID for item
 
-                # Add item ID to response
-                analysis['item_id'] = item_id
-            except Exception as db_error:
-                logger.error(f"❌ Database save failed: {db_error}")
-                db.rollback()
-                # Don't fail the request if DB save fails
+            # Prepare item data for Supabase
+            item_data = {
+                'id': item_id,
+                'user_id': user_id,
+                'original_image_url': original_image_url,
+                'extracted_image_url': extracted_image_url,
+                'type': analysis.get('type', ''),
+                'color': analysis.get('color', ''),
+                'pattern': analysis.get('pattern', ''),
+                'style': analysis.get('style', ''),
+                'confidence': analysis.get('confidence', 0.0),
+                'season': analysis.get('season', []),
+                'pairs_well_with': analysis.get('pairs_well_with', []),
+                'occasion': analysis.get('occasion'),
+                'material': analysis.get('material'),
+                'care_instructions': analysis.get('care_instructions')
+            }
+
+            # Save to Supabase via REST API
+            supabase_service.save_item(item_data)
+
+            # Add item ID to response
+            analysis['item_id'] = item_id
 
         return analysis
 
@@ -455,14 +459,11 @@ async def analyze_clothing(
     "/closet/{user_id}",
     tags=["Closet"],
     summary="Get user's closet items",
-    description="Fetch all clothing items for a specific user from the database."
+    description="Fetch all clothing items for a specific user from Supabase."
 )
-async def get_user_closet(
-    user_id: str,
-    db: Session = Depends(get_db)
-):
+async def get_user_closet(user_id: str, db: Session = Depends(get_db)):
     """
-    Get all clothing items for a user.
+    Get all clothing items for a user from Supabase database.
 
     Returns:
         List of clothing items with metadata and image URLs
@@ -486,6 +487,158 @@ async def get_user_closet(
 
 
 # ==================== Outfit Generation ====================
+
+@app.post(
+    "/style-outfit-smart",
+    tags=["Outfit Styler"],
+    summary="Claude-powered smart outfit matching",
+    description="Send your wardrobe items and get 3 AI-matched outfit variations."
+)
+async def style_outfit_smart(
+    occasion: str = Body(...),
+    wardrobe_items: List[Dict[str, Any]] = Body(...),
+    weather: Optional[Dict[str, Any]] = Body(None)
+):
+    """
+    Claude-powered outfit matching with actual item analysis.
+
+    Claude sees all your items and picks the best combinations.
+
+    Steps:
+    1. Claude analyzes your entire wardrobe
+    2. Creates 3 different outfit variations for the occasion
+    3. Returns matched outfits with specific item IDs
+
+    Args:
+        occasion: Type of occasion
+        wardrobe_items: Full list of user's clothing items
+        weather: Optional weather info
+
+    Returns:
+        3 complete outfit variations with matched items
+    """
+    try:
+        logger.info(f"🎨 Smart outfit matching for {occasion} with {len(wardrobe_items)} items")
+
+        # Build wardrobe description for Claude
+        items_description = "\n".join([
+            f"- ID: {item['id']}\n  Type: {item['type']}\n  Color: {item['color']}\n  Style: {item['style']}\n  Pattern: {item['pattern']}\n  Occasions: {', '.join(item.get('occasion', []))}"
+            for item in wardrobe_items
+        ])
+
+        import anthropic
+        import json
+        import re
+
+        client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+
+        smart_matching_prompt = f"""Create 3 different complete outfit variations for a {occasion} occasion from this wardrobe.
+
+Weather: {weather.get('condition', 'mild') if weather else 'mild'}, {weather.get('temperature', 'comfortable') if weather else 'comfortable'}°
+
+Each variation should have a different style/vibe but all appropriate for the occasion.
+
+AVAILABLE WARDROBE:
+{items_description}
+
+IMPORTANT: Analyze each item carefully (colors, patterns, styles, occasions).
+Create 3 DIFFERENT complete outfits using ONLY items from the wardrobe above.
+
+Each outfit should:
+1. Be appropriate for {occasion}
+2. Have items that work well together (colors, patterns, formality)
+3. Respect the occasion field of items (formal items for formal occasions)
+4. Use ACTUAL item IDs from the wardrobe
+
+Return ONLY valid JSON:
+{{
+    "outfits": [
+        {{
+            "name": "Classic Look",
+            "vibe": "Timeless and polished",
+            "items": [
+                {{"item_id": "actual-uuid-from-wardrobe", "role": "why this item works"}},
+                ...
+            ],
+            "styling_tips": "How to wear and accessorize",
+            "color_story": "Why these colors work together"
+        }},
+        ...  (2 more variations)
+    ]
+}}"""
+
+        logger.info("🤖 Having Claude match items intelligently...")
+
+        response = client.messages.create(
+            model=settings.CLAUDE_MODEL,
+            max_tokens=3000,
+            messages=[{"role": "user", "content": smart_matching_prompt}]
+        )
+
+        # Extract JSON
+        response_text = response.content[0].text
+        logger.info(f"📝 Claude response (full): {response_text}")
+
+        # Try to extract JSON
+        try:
+            json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+            if json_match:
+                response_text = json_match.group(1)
+            elif not response_text.strip().startswith('{'):
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if json_match:
+                    response_text = json_match.group(0)
+
+            outfit_data = json.loads(response_text)
+            outfits = outfit_data.get('outfits', [])
+
+            if not outfits:
+                logger.warning("⚠️  No outfits in response, returning empty")
+                return {
+                    "success": False,
+                    "message": "Claude couldn't create outfits from available items",
+                    "outfits": []
+                }
+
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ JSON parse error: {e}")
+            logger.error(f"Response text: {response_text}")
+            raise HTTPException(status_code=500, detail=f"Failed to parse Claude response: {str(e)}")
+
+        # Enrich with full item details
+        enriched_outfits = []
+        for outfit in outfits:
+            matched_items = []
+            for outfit_item in outfit.get('items', []):
+                item_id = outfit_item['item_id']
+                full_item = next((item for item in wardrobe_items if item.get('id') == item_id), None)
+
+                if full_item:
+                    item_copy = full_item.copy()
+                    item_copy['role_in_outfit'] = outfit_item.get('role', '')
+                    matched_items.append(item_copy)
+
+            enriched_outfits.append({
+                'name': outfit.get('name', 'Outfit'),
+                'vibe': outfit.get('vibe', ''),
+                'items': matched_items,
+                'styling_tips': outfit.get('styling_tips', ''),
+                'color_story': outfit.get('color_story', '')
+            })
+
+        logger.info(f"✨ Created {len(enriched_outfits)} smart-matched outfits")
+
+        return {
+            "success": True,
+            "occasion": occasion,
+            "weather": weather,
+            "outfits": enriched_outfits
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Outfit styling error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post(
     "/generate-outfit",
@@ -870,9 +1023,9 @@ async def demo_dashboard():
 
 @app.on_event("startup")
 async def startup_event():
-    """Log startup information and initialize database."""
-    # Initialize database
-    init_db()
+    """Log startup information."""
+    # Skip SQLAlchemy init - using Supabase REST API instead
+    # init_db()
 
     logger.info("=" * 60)
     logger.info("🚀 AI Closet Scanner API Starting...")
