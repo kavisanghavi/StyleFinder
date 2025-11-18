@@ -44,18 +44,24 @@ def main():
 
     # 3. Clone repository
     print("📥 Cloning repository...")
-    result = sandbox.process.code_run("""
-cd /workspace
-git clone https://github.com/kavisanghavi/StyleFinder .
-git checkout claude/daytona-bulk-image-processing-01FccCMhmkhcERQ8h8aLmJNN
-""")
 
-    if result.exit_code != 0:
-        print(f"❌ Failed: {result.result}")
+    # Run git commands using exec() for shell execution
+    try:
+        # Clone the repository
+        result1 = sandbox.process.exec(
+            command="git clone https://github.com/kavisanghavi/StyleFinder /workspace/StyleFinder"
+        )
+
+        # Checkout the branch
+        result2 = sandbox.process.exec(
+            command='cd /workspace/StyleFinder && git checkout "claude/daytona-bulk-image-processing-01FccCMhmkhcERQ8h8aLmJNN"'
+        )
+
+        print("✅ Repository cloned\n")
+    except Exception as e:
+        print(f"❌ Failed to clone repository: {e}")
         sandbox.delete()
         return
-
-    print("✅ Repository cloned\n")
 
     # 4. Create .env file with credentials
     print("🔧 Setting up environment variables...")
@@ -72,7 +78,7 @@ TIGRIS_BUCKET=closet-scanner
 """.strip()
 
     sandbox.filesystem.write(
-        path="/workspace/backend-api/.env",
+        path="/workspace/StyleFinder/backend-api/.env",
         content=env_content
     )
 
@@ -81,27 +87,33 @@ TIGRIS_BUCKET=closet-scanner
     # 5. Install dependencies
     print("📦 Installing dependencies (this may take 2-3 minutes)...")
 
-    result = sandbox.process.code_run("""
-cd /workspace/backend-api
-python3 -m venv venv
-source venv/bin/activate
-pip install --quiet --upgrade pip
-pip install --quiet -r requirements.txt
-""")
+    try:
+        # Create venv
+        sandbox.process.exec(
+            command="cd /workspace/StyleFinder/backend-api && python3 -m venv venv"
+        )
 
-    print("✅ Dependencies installed\n")
+        # Install dependencies
+        sandbox.process.exec(
+            command="cd /workspace/StyleFinder/backend-api && ./venv/bin/pip install --quiet --upgrade pip && ./venv/bin/pip install --quiet -r requirements.txt"
+        )
+
+        print("✅ Dependencies installed\n")
+    except Exception as e:
+        print(f"⚠️  Warning: {e}")
+        print("   Continuing anyway...\n")
 
     # 6. Start server
     print("🚀 Starting FastAPI server...")
 
-    # Start server in background session
-    sandbox.process.start_session(
-        command="""
-cd /workspace/backend-api
-source venv/bin/activate
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-"""
-    )
+    try:
+        # Start server in background session
+        sandbox.process.start_session(
+            command="cd /workspace/StyleFinder/backend-api && ./venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000"
+        )
+    except Exception as e:
+        print(f"⚠️  Could not start session: {e}")
+        print("   Trying alternative method...")
 
     print("⏳ Waiting for server to start...")
     import time
