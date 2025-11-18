@@ -86,9 +86,8 @@ struct ScanView: View {
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundColor(.white)
                                     .frame(width: 32, height: 32)
-                                    .background(Color.black.opacity(0.6))
+                                    .background(.ultraThinMaterial)
                                     .clipShape(Circle())
-                                    .backdrop(blur: 10)
                             }
                             .padding(28)
                         }
