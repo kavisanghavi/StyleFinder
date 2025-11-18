@@ -9,6 +9,7 @@ import SwiftUI
 struct OutfitCardView: View {
     let outfit: OutfitSuggestion
     let wardrobeItems: [ClothingItem]
+    let onSave: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -56,10 +57,7 @@ struct OutfitCardView: View {
             .padding(.horizontal, 20)
 
             // Save Button
-            Button(action: {
-                // TODO: Save outfit
-                print("💾 Saving outfit: \(outfit.occasion)")
-            }) {
+            Button(action: onSave) {
                 HStack(spacing: 12) {
                     Image(systemName: "heart.fill")
                     Text("Save This Outfit")

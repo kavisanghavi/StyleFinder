@@ -47,6 +47,7 @@ struct ContentView: View {
 struct OutfitsSheetView: View {
     let outfits: [OutfitSuggestion]
     let wardrobeItems: [ClothingItem]
+    let savedOutfitsManager: SavedOutfitsManager
     @Binding var isPresented: Bool
 
     var body: some View {
@@ -57,8 +58,14 @@ struct OutfitsSheetView: View {
                 TabView {
                     ForEach(outfits) { outfit in
                         ScrollView {
-                            OutfitCardView(outfit: outfit, wardrobeItems: wardrobeItems)
-                                .padding(20)
+                            OutfitCardView(
+                                outfit: outfit,
+                                wardrobeItems: wardrobeItems,
+                                onSave: {
+                                    savedOutfitsManager.saveOutfit(outfit, wardrobeItems: wardrobeItems)
+                                }
+                            )
+                            .padding(20)
                         }
                     }
                 }
@@ -600,6 +607,8 @@ struct WardrobeCard: View {
 
 struct OutfitGeneratorView: View {
     @EnvironmentObject var wardrobeVM: WardrobeViewModel
+    @StateObject private var savedOutfitsManager = SavedOutfitsManager()
+    @State private var selectedTab = 0  // 0 = Generate, 1 = Saved
     @State private var occasion = "Work"
     @State private var isGenerating = false
     @State private var generatedOutfits: [OutfitSuggestion] = []  // Multiple outfits
@@ -842,7 +851,12 @@ struct OutfitGeneratorView: View {
             }
         }
         .sheet(isPresented: $showOutfitsSheet) {
-            OutfitsSheetView(outfits: generatedOutfits, wardrobeItems: wardrobeVM.items, isPresented: $showOutfitsSheet)
+            OutfitsSheetView(
+                outfits: generatedOutfits,
+                wardrobeItems: wardrobeVM.items,
+                savedOutfitsManager: savedOutfitsManager,
+                isPresented: $showOutfitsSheet
+            )
         }
     }
 
