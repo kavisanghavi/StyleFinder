@@ -182,17 +182,26 @@ BACKEND_URL=https://preview-{sandbox.id}.daytona.app
 
 def start_server(sandbox):
     """Start the FastAPI server in the sandbox."""
+    from daytona.common.process import SessionExecuteRequest
+
     print("\n🚀 Starting FastAPI server...")
 
-    # Start uvicorn in background
-    result = sandbox.process.start_and_wait(
-        cmd="cd /workspace && uvicorn app.main:app --host 0.0.0.0 --port 8000",
-        background=True
+    # Create a session for running the server
+    session_id = "server-session"
+    sandbox.process.create_session(session_id)
+
+    # Start uvicorn in background using async execution
+    sandbox.process.execute_session_command(
+        session_id,
+        SessionExecuteRequest(
+            command="cd /workspace && uvicorn app.main:app --host 0.0.0.0 --port 8000",
+            var_async=True
+        )
     )
 
     print("✅ Server starting in background!")
 
-    return result
+    return session_id
 
 def get_preview_url(sandbox):
     """Get the preview URL for the running service."""
