@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     # ==================== Galileo Observability ====================
     GALILEO_API_KEY: Optional[str] = None
     GALILEO_PROJECT_NAME: str = "closet-scanner"
+    GALILEO_CONSOLE_URL: str = "https://console.galileo-ft.com"
 
     # ==================== Background Removal (Optional) ====================
     CLOUDINARY_CLOUD_NAME: Optional[str] = None

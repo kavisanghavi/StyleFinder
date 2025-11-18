@@ -68,12 +68,28 @@ class PersistenceController {
 
     // MARK: - CRUD Operations
 
-    /// Save a ClothingItem to Core Data
+    /// Save a ClothingItem to Core Data (upsert: update if exists, insert if new)
     func saveClothingItem(_ item: ClothingItem, imageData: Data?) throws {
         let context = container.viewContext
-        let entity = ClothingItemEntity(context: context)
 
-        entity.id = item.id
+        // Check if entity already exists
+        let request = NSFetchRequest<ClothingItemEntity>(entityName: "ClothingItemEntity")
+        request.predicate = NSPredicate(format: "id == %@", item.id as CVarArg)
+
+        let existingEntities = try context.fetch(request)
+        let entity: ClothingItemEntity
+
+        if let existing = existingEntities.first {
+            // Update existing entity
+            entity = existing
+        } else {
+            // Create new entity
+            entity = ClothingItemEntity(context: context)
+            entity.id = item.id
+            entity.createdAt = item.dateAdded
+        }
+
+        // Update all fields
         entity.type = item.type
         entity.color = item.color
         entity.pattern = item.pattern
@@ -81,12 +97,14 @@ class PersistenceController {
         entity.season = item.season.joined(separator: ",")
         entity.pairsWellWith = item.pairsWellWith.joined(separator: ",")
         entity.confidence = item.confidence
-        entity.createdAt = item.dateAdded
         entity.lastWornAt = item.lastWorn
 
-        // Note: Image is now stored in Tigris, URL is in item.imagePath
-        // No need to store image data locally
-        entity.imageData = nil
+        // Store Tigris URL in imageData field as UTF-8 string data
+        if !item.imagePath.isEmpty {
+            entity.imageData = item.imagePath.data(using: .utf8)
+        } else {
+            entity.imageData = nil
+        }
 
         try context.save()
     }
@@ -201,9 +219,15 @@ extension ClothingItemEntity {
             throw PersistenceError.invalidData
         }
 
+        // Load Tigris URL from imageData (stored as UTF-8 string)
+        var imageUrl = ""
+        if let imageData = imageData, let urlString = String(data: imageData, encoding: .utf8) {
+            imageUrl = urlString
+        }
+
         return ClothingItem(
             id: id,
-            imagePath: "", // Will be populated later if needed
+            imagePath: imageUrl,
             type: type,
             color: color,
             pattern: pattern,

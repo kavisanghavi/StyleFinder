@@ -34,7 +34,16 @@
       "Bash(PYTHONPATH=. ./venv/bin/uvicorn:*)",
       "Bash(git remote set-url:*)",
       "Bash(ssh:*)",
-      "Bash(venv/bin/pip list:*)"
+      "Bash(venv/bin/pip list:*)",
+      "WebFetch(domain:www.daytona.io)",
+      "WebFetch(domain:github.com)",
+      "Bash(PYTHONPATH=. ./venv/bin/python3:*)",
+      "Bash(ping:*)",
+      "WebFetch(domain:v2docs.galileo.ai)",
+      "Bash(export PYTHONPATH=.)",
+      "Bash(./start.sh)",
+      "Bash(SUPABASE_URL=https://cnnobgvxdpevzxjfoprs.supabase.co SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNubm9iZ3Z4ZHBldnp4amZvcHJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0ODUxNzEsImV4cCI6MjA3OTA2MTE3MX0.YIOvgksDCDfsrhxyWtg90ibpl0lQ0CXix9_iK-U6GlE PYTHONPATH=. ./venv/bin/python3:*)",
+      "Bash(nslookup:*)"
     ],
     "deny": [],
     "ask": []

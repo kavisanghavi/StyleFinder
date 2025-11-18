@@ -1,24 +1,28 @@
 """
 Database Configuration
 
-SQLAlchemy setup for SQLite database to store clothing items.
+SQLAlchemy setup for Supabase PostgreSQL database to store clothing items.
 """
 
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import logging
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# SQLite database URL
-SQLALCHEMY_DATABASE_URL = "sqlite:///./closet_ai.db"
+# Get database URL from environment (Supabase PostgreSQL)
+SQLALCHEMY_DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://postgres:StyleAssist%402025@db.cnnobgvxdpevzxjfoprs.supabase.co:5432/postgres"
+)
 
 # Create engine
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False}  # Needed for SQLite
-)
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
 
 # Create SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

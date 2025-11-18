@@ -38,7 +38,7 @@ class WardrobeViewModel: ObservableObject {
 
     private func clearSampleDataIfNeeded() {
         // Check if this is first launch or if we have old sample data
-        let hasCleared = UserDefaults.standard.bool(forKey: "hasCleared SampleData")
+        let hasCleared = UserDefaults.standard.bool(forKey: "hasClearedSampleData")
         if !hasCleared {
             try? persistence.deleteAllItems()
             UserDefaults.standard.set(true, forKey: "hasClearedSampleData")
@@ -97,8 +97,7 @@ class WardrobeViewModel: ObservableObject {
     func updateItem(_ itemId: UUID, with newItem: ClothingItem) {
         Task {
             do {
-                // Delete old and save new
-                try persistence.deleteItem(itemId)
+                // Save (upsert) - will update existing item with same ID
                 try persistence.saveClothingItem(newItem, imageData: nil)
 
                 await MainActor.run {

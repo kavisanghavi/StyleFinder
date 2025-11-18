@@ -47,15 +47,21 @@ class GalileoObserver:
 
         # Try to import and initialize Galileo
         try:
-            from galileo_observe import Observer
+            from galileo_observe import ObserveWorkflows
             from app.config import settings
+            import os
 
-            self.observer = Observer(
-                api_key=settings.GALILEO_API_KEY,
+            # Set environment variables for Galileo
+            if settings.GALILEO_API_KEY:
+                os.environ["GALILEO_API_KEY"] = settings.GALILEO_API_KEY
+            if settings.GALILEO_CONSOLE_URL:
+                os.environ["GALILEO_CONSOLE_URL"] = settings.GALILEO_CONSOLE_URL
+
+            self.observer = ObserveWorkflows(
                 project_name=settings.GALILEO_PROJECT_NAME
             )
             self.galileo_enabled = True
-            logger.info("✅ Galileo observability enabled")
+            logger.info(f"✅ Galileo observability enabled (project: {settings.GALILEO_PROJECT_NAME})")
         except ImportError:
             logger.warning("⚠️  Galileo library not available - running without observability")
             self.galileo_enabled = False
@@ -86,14 +92,13 @@ class GalileoObserver:
             async def async_wrapper(*args, **kwargs):
                 start_time = time.time()
 
-                # Start Galileo trace if enabled
-                trace_context = None
+                # Start Galileo workflow if enabled
+                workflow = None
                 if self.galileo_enabled and self.observer:
                     try:
-                        trace_context = self.observer.trace(name=name)
-                        trace_context.__enter__()
+                        workflow = self.observer.add_workflow(input={"operation": name})
                     except Exception as e:
-                        logger.warning(f"Failed to start Galileo trace: {e}")
+                        logger.warning(f"Failed to start Galileo workflow: {e}")
 
                 try:
                     # Execute the actual function
@@ -103,13 +108,15 @@ class GalileoObserver:
                     latency = time.time() - start_time
 
                     # Log success to Galileo
-                    if trace_context:
+                    if workflow:
                         try:
-                            trace_context.log_metrics({
-                                "latency": latency,
-                                "status": "success",
-                                "timestamp": datetime.utcnow().isoformat()
-                            })
+                            workflow.add_llm(
+                                input={"operation": name},
+                                output={"status": "success", "latency": latency},
+                                model=name
+                            )
+                            workflow.conclude(output={"status": "success"})
+                            self.observer.upload_workflows()
                         except Exception as e:
                             logger.warning(f"Failed to log metrics to Galileo: {e}")
 
@@ -123,14 +130,15 @@ class GalileoObserver:
                     latency = time.time() - start_time
 
                     # Log error to Galileo
-                    if trace_context:
+                    if workflow:
                         try:
-                            trace_context.log_metrics({
-                                "status": "error",
-                                "error": str(e),
-                                "latency": latency,
-                                "timestamp": datetime.utcnow().isoformat()
-                            })
+                            workflow.add_llm(
+                                input={"operation": name},
+                                output={"status": "error", "error": str(e)},
+                                model=name
+                            )
+                            workflow.conclude(output={"status": "error"})
+                            self.observer.upload_workflows()
                         except Exception as log_error:
                             logger.warning(f"Failed to log error to Galileo: {log_error}")
 
@@ -140,38 +148,31 @@ class GalileoObserver:
                     # Re-raise the original exception
                     raise
 
-                finally:
-                    # Clean up Galileo trace
-                    if trace_context:
-                        try:
-                            trace_context.__exit__(None, None, None)
-                        except Exception as e:
-                            logger.warning(f"Failed to exit Galileo trace: {e}")
-
             @wraps(func)
             def sync_wrapper(*args, **kwargs):
                 """Synchronous wrapper for non-async functions."""
                 start_time = time.time()
 
-                trace_context = None
+                workflow = None
                 if self.galileo_enabled and self.observer:
                     try:
-                        trace_context = self.observer.trace(name=name)
-                        trace_context.__enter__()
+                        workflow = self.observer.add_workflow(input={"operation": name})
                     except Exception as e:
-                        logger.warning(f"Failed to start Galileo trace: {e}")
+                        logger.warning(f"Failed to start Galileo workflow: {e}")
 
                 try:
                     result = func(*args, **kwargs)
                     latency = time.time() - start_time
 
-                    if trace_context:
+                    if workflow:
                         try:
-                            trace_context.log_metrics({
-                                "latency": latency,
-                                "status": "success",
-                                "timestamp": datetime.utcnow().isoformat()
-                            })
+                            workflow.add_llm(
+                                input={"operation": name},
+                                output={"status": "success", "latency": latency},
+                                model=name
+                            )
+                            workflow.conclude(output={"status": "success"})
+                            self.observer.upload_workflows()
                         except Exception as e:
                             logger.warning(f"Failed to log metrics: {e}")
 
@@ -181,25 +182,20 @@ class GalileoObserver:
                 except Exception as e:
                     latency = time.time() - start_time
 
-                    if trace_context:
+                    if workflow:
                         try:
-                            trace_context.log_metrics({
-                                "status": "error",
-                                "error": str(e),
-                                "latency": latency
-                            })
+                            workflow.add_llm(
+                                input={"operation": name},
+                                output={"status": "error", "error": str(e)},
+                                model=name
+                            )
+                            workflow.conclude(output={"status": "error"})
+                            self.observer.upload_workflows()
                         except Exception:
                             pass
 
                     self._update_metrics(name, latency, success=False)
                     raise
-
-                finally:
-                    if trace_context:
-                        try:
-                            trace_context.__exit__(None, None, None)
-                        except Exception:
-                            pass
 
             # Return appropriate wrapper based on function type
             import inspect

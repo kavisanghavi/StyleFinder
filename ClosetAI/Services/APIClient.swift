@@ -118,6 +118,139 @@ class APIClient {
         }
     }
 
+    /// Get multiple outfit styling recipes from backend (Claude)
+    func getStyleRecipes(
+        occasion: String,
+        weather: Weather? = nil
+    ) async throws -> [StyleRecipe] {
+        let url = URL(string: "\(baseURL)/style-recipe")!
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Build request
+        var requestDict: [String: Any] = [
+            "occasion": occasion
+        ]
+
+        if let weather = weather {
+            requestDict["weather"] = [
+                "temperature": weather.temperature,
+                "condition": weather.condition
+            ]
+        }
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestDict)
+
+        print("🎨 Getting style recipe for \(occasion)...")
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw APIError.invalidResponse
+        }
+
+        // Parse response
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let outfitsArray = json["outfits"] as? [[String: Any]] ?? []
+
+        return outfitsArray.map { outfitData in
+            StyleRecipe(
+                name: outfitData["name"] as? String ?? "Outfit",
+                vibe: outfitData["vibe"] as? String ?? "",
+                occasion: json["occasion"] as? String ?? occasion,
+                recipe: outfitData["recipe"] as? [String: String] ?? [:],
+                colorPalette: outfitData["color_palette"] as? [String] ?? [],
+                stylingTips: outfitData["styling_tips"] as? String ?? "",
+                formalityLevel: outfitData["formality_level"] as? String ?? "casual"
+            )
+        }
+    }
+
+    /// Style outfit from user's closet using AI (legacy - sends all items)
+    func styleOutfit(
+        occasion: String,
+        wardrobeItems: [ClothingItem],
+        weather: Weather? = nil
+    ) async throws -> OutfitSuggestion {
+        let url = URL(string: "\(baseURL)/style-outfit")!
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Build request
+        let userId = getUserId()
+        var requestDict: [String: Any] = [
+            "user_id": userId,
+            "occasion": occasion,
+            "wardrobe_items": wardrobeItems.map { item in
+                [
+                    "id": item.id.uuidString,
+                    "type": item.type,
+                    "color": item.color,
+                    "pattern": item.pattern,
+                    "style": item.style,
+                    "season": item.season,
+                    "pairs_well_with": item.pairsWellWith,
+                    "confidence": item.confidence,
+                    "extracted_image_url": item.imagePath,
+                    "material": item.material as Any,
+                    "occasion": item.occasion as Any
+                ]
+            }
+        ]
+
+        if let weather = weather {
+            requestDict["weather"] = [
+                "temperature": weather.temperature,
+                "condition": weather.condition
+            ]
+        }
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestDict)
+
+        print("🎨 Styling outfit for \(occasion)...")
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw APIError.invalidResponse
+        }
+
+        // Parse response
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+
+        guard let success = json["success"] as? Bool, success else {
+            let message = json["message"] as? String ?? "Unknown error"
+            throw APIError.networkError(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: message]))
+        }
+
+        let outfitData = json["outfit"] as! [String: Any]
+        let items = outfitData["items"] as! [[String: Any]]
+
+        // Convert to OutfitSuggestion
+        let outfitItems = items.map { item in
+            OutfitSuggestion.OutfitItem(
+                id: item["id"] as! String,
+                type: item["type"] as! String,
+                reasoning: item["role_in_outfit"] as! String
+            )
+        }
+
+        return OutfitSuggestion(
+            occasion: occasion,
+            items: outfitItems,
+            reasoning: outfitData["why_this_works"] as! String,
+            styleTips: outfitData["styling_advice"] as! String,
+            weatherTemp: weather?.temperature,
+            weatherCondition: weather?.condition
+        )
+    }
+
     /// Generate outfit suggestions
     func generateOutfit(
         wardrobeItems: [ClothingItem],
@@ -376,6 +509,19 @@ struct HealthResponse: Codable {
         let enabled: Bool
         let model: String?
     }
+}
+
+// MARK: - Style Recipe Model
+
+struct StyleRecipe: Identifiable {
+    let id = UUID()
+    let name: String              // "Classic Look", "Modern Edge"
+    let vibe: String              // "Timeless and polished"
+    let occasion: String
+    let recipe: [String: String]  // category -> criteria
+    let colorPalette: [String]
+    let stylingTips: String
+    let formalityLevel: String
 }
 
 // MARK: - Weather Model

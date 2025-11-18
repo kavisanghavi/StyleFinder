@@ -564,7 +564,7 @@ struct OutfitGeneratorView: View {
     @EnvironmentObject var wardrobeVM: WardrobeViewModel
     @State private var occasion = "Work"
     @State private var isGenerating = false
-    @State private var generatedOutfit: OutfitSuggestion?
+    @State private var generatedOutfits: [OutfitSuggestion] = []  // Multiple outfits
     @State private var weatherEnabled = true
     @State private var city = "San Francisco"
 
@@ -666,8 +666,17 @@ struct OutfitGeneratorView: View {
                         .disabled(isGenerating)
                         .padding(.horizontal, 20)
 
-                        // Results
-                        if let outfit = generatedOutfit {
+                        // Results - Swipeable Carousel
+                        if !generatedOutfits.isEmpty {
+                            TabView {
+                                ForEach(generatedOutfits) { outfit in
+                                    OutfitCardView(outfit: outfit, wardrobeItems: wardrobeVM.items)
+                                        .padding(.horizontal, 20)
+                                }
+                            }
+                            .tabViewStyle(.page(indexDisplayMode: .always))
+                            .frame(height: 600)
+                        } else if let outfit = generatedOutfits.first {
                             VStack(spacing: 20) {
                                 // Success Header
                                 HStack(spacing: 12) {
@@ -811,24 +820,60 @@ struct OutfitGeneratorView: View {
         }
 
         isGenerating = true
-        generatedOutfit = nil
+        generatedOutfits = []
 
         Task {
             do {
-                // Use user's ACTUAL closet items!
-                let outfit = try await APIClient.shared.generateOutfit(
-                    wardrobeItems: wardrobeVM.items,
+                // 1. Get multiple styling recipes from backend (Claude)
+                print("📡 Getting style recipes from backend...")
+                let recipes = try await APIClient.shared.getStyleRecipes(
                     occasion: occasion,
                     weather: weatherEnabled ? Weather(temperature: 72, condition: "Clear") : nil
                 )
 
+                print("✅ Received \(recipes.count) outfit variations")
+
+                // 2. Match items for each recipe using Apple Intelligence
+                var outfits: [OutfitSuggestion] = []
+
+                for recipe in recipes {
+                    let selectedItems = try await AppleIntelligenceStyler.shared.matchItemsToRecipe(
+                        recipe: recipe.recipe,
+                        availableItems: wardrobeVM.items,
+                        colorPalette: recipe.colorPalette,
+                        stylingTips: recipe.stylingTips
+                    )
+
+                    let outfitItems = selectedItems.map { item in
+                        OutfitSuggestion.OutfitItem(
+                            id: item.id.uuidString,
+                            type: item.type,
+                            reasoning: recipe.vibe
+                        )
+                    }
+
+                    let outfit = OutfitSuggestion(
+                        occasion: recipe.name,  // "Classic Look", etc.
+                        items: outfitItems,
+                        reasoning: recipe.vibe,
+                        styleTips: recipe.stylingTips,
+                        weatherTemp: 72.0,
+                        weatherCondition: "Clear"
+                    )
+
+                    outfits.append(outfit)
+                }
+
+                print("✅ Created \(outfits.count) complete outfits")
+
                 await MainActor.run {
                     withAnimation(.spring(response: 0.4)) {
-                        generatedOutfit = outfit
+                        generatedOutfits = outfits
                         isGenerating = false
                     }
                 }
             } catch {
+                print("❌ Outfit generation error: \(error)")
                 await MainActor.run {
                     isGenerating = false
                 }
