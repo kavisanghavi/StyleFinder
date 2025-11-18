@@ -173,22 +173,22 @@ Requirements:
             # Build prompt for background removal
             prompt = f"""Extract and isolate ONLY the {subject_description} from this image.
 
-CRITICAL REQUIREMENTS - FOLLOW EXACTLY:
+⚠️ ABSOLUTE CRITICAL REQUIREMENT #1 - VERTICAL ORIENTATION:
+You MUST make the clothing item PERFECTLY VERTICAL and UPRIGHT. This is NON-NEGOTIABLE.
+- Imagine drawing a vertical line from top to bottom of the image
+- The clothing's center line (from collar to hem) MUST align with this vertical line
+- The collar/neckline MUST be at the TOP (12 o'clock position)
+- The bottom hem MUST be at the BOTTOM (6 o'clock position)
+- The shoulders MUST be horizontal (parallel to the top edge of the image)
+- If the photo was taken at ANY angle, rotate the clothing to be PERFECTLY UPRIGHT
+- Zero degrees rotation - perfectly vertical - no tilt whatsoever
+- Think: the clothing should look like it's hanging on a wall, not tilted
 
-PRESERVE EXACT APPEARANCE:
-- Keep the clothing EXACTLY as it appears in the original photo
-- DO NOT rearrange sleeves, collars, or any parts
-- DO NOT "idealize" or style the clothing
-- Preserve the exact fold, drape, and position of all elements
-- If sleeves are spread out, keep them spread out
-- If fabric has wrinkles or folds, keep them
-- The item should look IDENTICAL to the original, just without background
-
-ORIENTATION:
-- Make the item PERFECTLY UPRIGHT and VERTICAL
-- The collar/neckline at TOP, bottom hem at BOTTOM
-- If the photo is tilted, straighten it to vertical
-- NO rotation, NO tilting, PERFECTLY upright
+PRESERVE ARRANGEMENT (but keep vertical):
+- Keep sleeves in their original position (spread out if they were spread out)
+- Keep fabric drape and folds as they were
+- DO NOT rearrange or "style" the clothing
+- BUT ensure the overall garment is VERTICAL while preserving these details
 
 BACKGROUND:
 - Use ONLY pure white background (#FFFFFF) or transparent
