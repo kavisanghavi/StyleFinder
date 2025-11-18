@@ -138,6 +138,26 @@ struct VirtualTryOnView: View {
                                 .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
                                 .padding(.horizontal, 20)
 
+                            // Positive Statement from Claude
+                            if let statement = positiveStatement {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "speaker.wave.2.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(Color(hex: "EC4899"))
+
+                                    Text(statement)
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(.primary)
+                                        .multilineTextAlignment(.leading)
+                                }
+                                .padding(20)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                                .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
+                                .padding(.horizontal, 20)
+                            }
+
                             // Action Buttons
                             HStack(spacing: 12) {
                                 Button(action: resetTryOn) {
@@ -240,17 +260,22 @@ struct VirtualTryOnView: View {
 
                 // Play positive statement with ElevenLabs
                 if let statement = statement, !statement.isEmpty {
+                    print("💬 Received positive statement: \(statement)")
                     do {
+                        print("🔊 Calling ElevenLabs TTS...")
                         let audioData = try await APIClient.shared.textToSpeech(
                             text: statement,
                             apiKey: elevenLabsApiKey
                         )
+                        print("✅ Audio received, playing...")
                         await MainActor.run {
                             playAudio(data: audioData)
                         }
                     } catch {
                         print("❌ Failed to generate speech: \(error)")
                     }
+                } else {
+                    print("⚠️  No positive statement received from backend")
                 }
             } catch {
                 await MainActor.run {
