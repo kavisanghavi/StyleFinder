@@ -15,7 +15,7 @@ boto3==1.29.7
 python-dotenv==1.0.0
 
 # Monitoring
-galileo-observe==1.0.5
+galileo-observe>=1.29.0
 
 # Utilities
 httpx==0.25.1
