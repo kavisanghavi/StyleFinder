@@ -33,6 +33,7 @@ from app.services.tigris_service import tigris_service
 from app.services.brex_service import brex_service
 from app.services.weather_service import weather_service
 from app.services.background_removal_service import background_removal_service
+from app.services.daytona_service import daytona_service
 from app.monitoring.galileo_observer import galileo_observer
 from app.config import settings
 
@@ -173,6 +174,7 @@ async def health_check():
             "elevenlabs": {"enabled": elevenlabs_service.enabled},
             "nanobanana": {"enabled": nanobanana_service.enabled},
             "tigris": {"enabled": tigris_service.enabled},
+            "daytona": {"enabled": daytona_service.enabled, "configured": settings.DAYTONA_ENABLED},
             "weather": {"enabled": weather_service.enabled},
             "galileo": {"enabled": galileo_observer.galileo_enabled}
         }
@@ -452,6 +454,138 @@ async def analyze_clothing(
 
     except Exception as e:
         logger.error(f"❌ Clothing analysis error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
+    "/analyze-clothing-daytona",
+    response_model=ClothingAnalysisResponse,
+    tags=["Clothing Analysis"],
+    summary="Analyze clothing in Daytona sandbox (SCALABLE)",
+    description="Process clothing images in isolated Daytona sandboxes for scalable, parallel processing. "
+                "This endpoint creates a fresh sandbox for each request, ensuring complete isolation and "
+                "enabling horizontal scaling for high-volume workloads."
+)
+async def analyze_clothing_daytona(
+    file: UploadFile = File(...),
+    user_id: Optional[str] = Form(None),
+    remove_background: Optional[bool] = Form(True),
+    db: Session = Depends(get_db)
+):
+    """
+    Analyze clothing using Daytona sandbox for scalable processing.
+
+    This endpoint:
+    1. Creates an isolated Daytona sandbox with all dependencies
+    2. Uploads the image and processing script to the sandbox
+    3. Executes complete processing pipeline (orientation, background removal, Tigris upload, Claude analysis)
+    4. Returns results and cleans up the sandbox
+    5. Saves metadata to Supabase database
+
+    **Benefits:**
+    - Scalable: Process multiple images in parallel
+    - Isolated: Each job runs in a fresh environment
+    - Resource-efficient: No local compute usage
+    - Fault-tolerant: Failures don't affect main API
+
+    Args:
+        file: Image file (JPEG, PNG, etc.)
+        user_id: Optional user identifier for organizing images
+        remove_background: Whether to remove background (default: True)
+
+    Returns:
+        ClothingAnalysisResponse: Complete analysis with Tigris URLs
+
+    Raises:
+        HTTPException: If Daytona is not enabled or processing fails
+    """
+    try:
+        logger.info(f"🚀 Processing clothing with Daytona: {file.filename}")
+
+        # Check if Daytona is enabled
+        if not settings.DAYTONA_ENABLED:
+            raise HTTPException(
+                status_code=503,
+                detail="Daytona processing is not enabled. Set DAYTONA_ENABLED=true in .env"
+            )
+
+        if not daytona_service.enabled:
+            raise HTTPException(
+                status_code=503,
+                detail="Daytona service is not available. Check DAYTONA_API_KEY configuration."
+            )
+
+        # Read and encode image
+        image_data = await file.read()
+        image_base64 = base64.b64encode(image_data).decode('utf-8')
+
+        # Process in Daytona sandbox
+        results = await daytona_service.process_image(
+            image_base64=image_base64,
+            filename=file.filename or "image.jpg",
+            user_id=user_id,
+            remove_background=remove_background
+        )
+
+        # Check if processing succeeded
+        if not results.get('success'):
+            error_msg = results.get('errors', ['Unknown error'])[0]
+            raise HTTPException(status_code=500, detail=f"Processing failed: {error_msg}")
+
+        # Extract analysis from results
+        analysis = results.get('analysis', {})
+        if not analysis:
+            raise HTTPException(status_code=500, detail="No analysis returned from sandbox")
+
+        # Add URLs from Tigris
+        analysis['original_image_url'] = results.get('original_image_url')
+        analysis['extracted_image_url'] = results.get('extracted_image_url')
+        analysis['background_was_removed'] = results.get('background_was_removed', False)
+
+        # Add processing metadata
+        analysis['processing_time_seconds'] = results.get('processing_time_seconds', 0)
+        analysis['total_time_seconds'] = results.get('total_time_seconds', 0)
+        analysis['sandbox_id'] = results.get('sandbox_id')
+        analysis['processed_in_daytona'] = True
+
+        # Save to Supabase (if user_id provided)
+        if user_id:
+            try:
+                item_id = str(uuid.uuid4())
+
+                item_data = {
+                    'id': item_id,
+                    'user_id': user_id,
+                    'original_image_url': analysis.get('original_image_url'),
+                    'extracted_image_url': analysis.get('extracted_image_url'),
+                    'type': analysis.get('type', ''),
+                    'color': analysis.get('color', ''),
+                    'pattern': analysis.get('pattern', ''),
+                    'style': analysis.get('style', ''),
+                    'confidence': analysis.get('confidence', 0.0),
+                    'season': analysis.get('season', []),
+                    'pairs_well_with': analysis.get('pairs_well_with', []),
+                    'occasion': analysis.get('occasion'),
+                    'material': analysis.get('material'),
+                    'care_instructions': analysis.get('care_instructions')
+                }
+
+                supabase_service.save_item(item_data)
+                analysis['item_id'] = item_id
+
+                logger.info(f"✅ Item saved to Supabase: {item_id}")
+
+            except Exception as e:
+                logger.warning(f"⚠️  Failed to save to Supabase: {e}")
+
+        logger.info(f"✅ Daytona processing complete in {results.get('total_time_seconds', 0)}s")
+
+        return analysis
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Daytona clothing analysis error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

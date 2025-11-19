@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     TIGRIS_BUCKET_NAME: str = "closet-scanner-backups"
     TIGRIS_REGION: str = "auto"
 
+    # ==================== Daytona Sandbox ====================
+    DAYTONA_API_KEY: Optional[str] = None
+    DAYTONA_API_URL: str = "https://app.daytona.io/api"
+    DAYTONA_TARGET: str = "us"
+    DAYTONA_ENABLED: bool = False  # Enable/disable Daytona processing
+
     # ==================== Brex (Optional) ====================
     BREX_API_KEY: Optional[str] = None
 
